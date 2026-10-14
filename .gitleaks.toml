@@ -1,10 +1,14 @@
 title = "yopa.page secret scanning"
 
+# Public upstream Excalidraw Firebase browser config, not an owner credential.
+# Firebase documents that API keys identify projects and do not authorize access.
+# https://firebase.google.com/docs/projects/api-keys
 [extend]
 useDefault = true
-
 [[allowlists]]
-description = "Generated Excalidraw vendor bundles contain upstream public Firebase client configuration; source files remain covered by native push protection and this scan."
-paths = [
-  '''^static/draw/assets/''',
-]
+targetRules = ["gcp-api-key", "generic-api-key"]
+description = "Exact upstream public Firebase identifier in the pinned draw bundle only"
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^(static/draw/assets/index-(SOn19Nlr|DbFyD3Cq)\.js|\.gitleaks\.toml)$''']
+regexes = ['''^\x41\x49\x7a\x61\x53\x79\x41\x64\x31\x35\x70\x59\x6c\x4d\x63\x69\x5f\x78\x49\x70\x39\x6b\x6f\x36\x77\x6b\x45\x73\x44\x7a\x41\x41\x41\x30\x44\x6e\x30\x52\x55$''']
