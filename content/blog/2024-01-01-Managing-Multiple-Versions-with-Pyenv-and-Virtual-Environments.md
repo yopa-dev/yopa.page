@@ -1,8 +1,8 @@
 ---
 title: Managing Multiple Versions with Pyenv and Virtual Environments
 date: 2024-01-01
-lastmod: 2026-08-01
-reviewed_at: 2026-08-01
+lastmod: 2026-10-21
+reviewed_at: 2026-10-21
 author: Yoonsoo Park
 description: "Dive into the essentials of Python development by learning how to manage multiple Python versions with Pyenv and create isolated project environments using virtual environments."
 categories:
@@ -14,6 +14,8 @@ tags:
 ---
 
 ![oni working on python](images/oni-python-1.webp)
+
+> **Review note (2026-10-21):** The install example pinned `3.13.5`, and 3.13 now receives security fixes only. The example now installs the 3.14 bugfix line through pyenv prefix resolution, with a read-only `pyenv latest --known` check first ([Python downloads](https://www.python.org/downloads/), [pyenv commands](https://github.com/pyenv/pyenv/blob/master/COMMANDS.md#pyenv-install)). Step 4 was also relabeled: `pyenv local` pins the version for the current project, not globally.
 
 ## Managing Multiple Versions with Pyenv and Virtual Environments
 
@@ -55,17 +57,23 @@ Select a release that is still supported on the [Python versions page](https://d
    eval "$(pyenv init -)"
    ```
 
-3. **Install Python Versions**: Install the desired Python versions:
+3. **Install Python Versions**: Check which patch pyenv would install (read-only), then install the newest patch of a supported line:
 
    ```bash
-   pyenv install 3.13.5
+   pyenv latest --known 3.14
+   pyenv install 3.14
    ```
 
-4. **Set Global Python Version**: Choose a global Python version with `pyenv`:
+   A prefix such as `3.14` resolves to the latest patch pyenv knows about. If that is older than the patch listed on [python.org](https://www.python.org/downloads/), update pyenv first.
+
+4. **Pin the Project's Python Version**: In the project directory, write the exact installed version to `.python-version`:
 
    ```bash
-   pyenv local 3.13.5
+   pyenv local "$(pyenv latest 3.14)"
+   python --version
    ```
+
+   `pyenv local` affects only this directory and its subdirectories. Use `pyenv global` for a user-wide default. `python --version` confirms which interpreter is active.
 
 ## Creating and Activating Virtual Environments
 

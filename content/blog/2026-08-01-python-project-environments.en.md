@@ -19,6 +19,8 @@ Python environment management is easier when version selection and dependency is
 
 This article was verified on 2026-08-01 against the [Python `venv` documentation](https://docs.python.org/3/library/venv.html) and the [Python Packaging User Guide](https://packaging.python.org/en/latest/guides/installing-using-pip-and-virtual-environments/).
 
+> **Review note (2026-10-21):** The example pinned `3.13.5`. Python 3.13 is now in its security-fixes-only phase, and 3.14 and 3.15 (released October 9, 2026) are the bugfix lines ([Python downloads](https://www.python.org/downloads/)). The example now uses the 3.14 line through pyenv prefix resolution instead of a hard-coded patch.
+
 ## Recommended baseline
 
 Use a Python release that is still supported by the Python project. From the project root:
@@ -62,14 +64,15 @@ For a small application, create `pyproject.toml` with its direct requirements an
 ```bash
 git clone https://example.com/team/project.git
 cd project
-pyenv install --skip-existing 3.13.5
-pyenv local 3.13.5
+pyenv latest --known 3.14
+pyenv install --skip-existing 3.14
+pyenv local "$(pyenv latest 3.14)"
 python -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 .venv/bin/python -m pytest
 ```
 
-The concrete version above is an example, not a timeless recommendation. Check the [Python versions page](https://devguide.python.org/versions/) and the project's declared support range before selecting it. In CI, create a fresh environment for every supported Python version instead of copying a developer's `.venv`.
+`pyenv latest --known 3.14` is read-only and prints the newest 3.14 patch that your pyenv knows about. If it is older than the patch listed on python.org, update pyenv first. `pyenv install 3.14` resolves the prefix to that patch, and `pyenv local "$(pyenv latest 3.14)"` writes the exact installed version to `.python-version`, so every checkout selects the same interpreter version. The concrete version above is an example, not a timeless recommendation. Check the [Python versions page](https://devguide.python.org/versions/) and the project's declared support range before selecting it. In CI, create a fresh environment for every supported Python version instead of copying a developer's `.venv`.
 
 ## Common failure modes
 

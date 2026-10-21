@@ -2,8 +2,8 @@
 title: Setting Up a Shortcut for GitHub Copilot in VS Code
 title-with-dash: Setting-Up-a-Shortcut-for-GitHub-Copilot-in-VS-Code
 date: 2024-03-25
-lastmod: 2026-08-01
-reviewed_at: 2026-08-01
+lastmod: 2026-10-21
+reviewed_at: 2026-10-21
 author: Yoonsoo Park
 description: "Learn how to configure a keyboard shortcut in VS Code to quickly access the GitHub Copilot chat panel."
 categories:
@@ -17,7 +17,13 @@ tags:
 
 GitHub Copilot has become an indispensable tool for many developers, offering AI-powered code suggestions that streamline the coding process. However, constantly navigating through menus to access Copilot can disrupt your workflow. This tutorial will guide you through setting up a keyboard shortcut in Visual Studio Code (VS Code) to quickly open the GitHub Copilot chat panel.
 
-### Step-by-Step Guide to Setting Up Your Shortcut
+> **Review note (2026-10-21):** VS Code now ships a default shortcut for the Chat view: `⌃⌘I` on macOS and `Ctrl+Alt+I` on Windows and Linux ([VS Code Copilot features](https://code.visualstudio.com/docs/copilot/reference/copilot-vscode-features)). Try that first. The custom binding below is now optional, and its command ID dates from 2024, so confirm it in the Keyboard Shortcuts editor before you rely on it.
+
+### Use the built-in shortcut first
+
+Press `⌃⌘I` (macOS) or `Ctrl+Alt+I` (Windows, Linux) to open the Chat view. If nothing happens, open **Keyboard Shortcuts**, search for "chat", and check whether another extension or a custom binding overrides that key.
+
+### Optional: a custom toggle shortcut
 
 Command IDs and default bindings can change with VS Code and the Copilot extension. Open Keyboard Shortcuts, search for the current Copilot Chat command by name, assign a non-conflicting key, and use the conflict view to verify context.
 
