@@ -1,8 +1,8 @@
 ---
 title: Passing Command-Line Arguments to a TypeScript Script using NPM
 date: 2023-08-18T01:25:00-04:00
-lastmod: 2026-08-01
-reviewed_at: 2026-08-01
+lastmod: 2026-10-21
+reviewed_at: 2026-10-21
 author: Yoonsoo Park
 description: "A step-by-step guide on passing command-line arguments to a TypeScript script using npm run."
 categories:
@@ -14,6 +14,8 @@ tags:
   - CLI
   - Input Validation
 ---
+
+> **Review note (2026-10-21):** The original `"start": "ts-node your-script-file.ts"` no longer works with the current `typescript` package. With TypeScript 7.0.2 installed, ts-node 10.9.2 crashes at startup with `TypeError: Cannot read properties of undefined (reading 'fileExists')`. The script now uses Node.js's built-in type stripping (stable since Node.js 24.12), and `tsx` is the fallback. The argument handling is unchanged.
 
 ## Argument boundary and validation
 
@@ -27,9 +29,9 @@ In modern JavaScript and TypeScript development, `npm` scripts are commonly used
 
 To run your TypeScript script using the `npm run` command, you can define a script in your `package.json` file. Here's a step-by-step guide to help you set it up:
 
-1. Ensure you have the necessary dependencies. Before running TypeScript files, make sure you have the TypeScript compiler and, optionally, `ts-node` installed.
-2. Create or update a `tsconfig.json` file to include compiler options for TypeScript.
-3. Add a script entry to the `scripts` section of your `package.json` to execute the TypeScript file with `ts-node`.
+1. Check the runtime first: `node --version`. Node.js runs `.ts` files that use only erasable TypeScript syntax: type stripping is on by default since v22.18.0 and v23.6.0, and stable since v24.12.0. Use a supported LTS line (22 or 24).
+2. Install TypeScript only if you want type checking (`npm install --save-dev typescript` and `npx tsc --noEmit`). Node.js strips types but never checks them.
+3. Add a script entry to the `scripts` section of your `package.json` that runs the file with `node`.
 
 ## Passing Parameters with NPM Run
 
@@ -50,13 +52,27 @@ To run your TypeScript script using the `npm run` command, you can define a scri
 
 2. **Updating the NPM Script**:
 
-    Your `package.json` file remains unchanged. It can look like this:
+    Your `package.json` scripts entry can look like this:
 
     ```json
     "scripts": {
-      "start": "ts-node your-script-file.ts"
+      "start": "node your-script-file.ts"
     }
     ```
+
+    Type stripping only removes annotations, so TypeScript features that need code generation, such as `enum` and parameter properties, fail with `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`. If your script uses them, or you are on an older Node.js line, use `tsx` instead, as the [Node.js TypeScript documentation](https://nodejs.org/api/typescript.html#full-typescript-support) suggests:
+
+    ```bash
+    npm install --save-dev tsx
+    ```
+
+    ```json
+    "scripts": {
+      "start": "tsx your-script-file.ts"
+    }
+    ```
+
+    Avoid `ts-node` for new setups. It loads the TypeScript compiler API, which TypeScript 7.0 does not ship.
 
 3. **Executing the Script with Arguments**:
 
@@ -66,7 +82,7 @@ To run your TypeScript script using the `npm run` command, you can define a scri
     npm run start -- --arg=myProfile
     ```
 
-    The `--` after `npm run start` indicates that the subsequent arguments should be passed directly to the invoked script.
+    The `--` after `npm run start` indicates that the subsequent arguments should be passed directly to the invoked script. npm echoes the final command (`node your-script-file.ts --arg=myProfile`), so you can confirm the argument reached the script. Run it once without the argument as well and check that the `"default"` fallback is used.
 
 ## Advanced: Using Argument Parsers
 

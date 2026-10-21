@@ -21,11 +21,15 @@ Automatic container replacement looks like maintenance, but it is also an unatte
 
 For a personal Docker or Synology host, the practical goal is not “never automate.” It is to separate **discovery** from **deployment** and make each update observable and recoverable.
 
+> **Review note (2026-10-21):** The August version used `containrrr/watchtower:1.7.1` as the monitor. That project is no longer maintained. Its maintainers [announced the archive](https://github.com/containrrr/watchtower/discussions/2135) on December 17, 2025, and the repository is now read-only. Separately, Docker Engine 29 [requires API v1.44 or later](https://docs.docker.com/engine/release-notes/29/), and Watchtower 1.7.1 fails against it with `client version 1.25 is too old` ([issue #2124](https://github.com/containrrr/watchtower/issues/2124)). The example now uses a maintained notify-only monitor, and the checklist adds a Docker API check. The update procedure itself is unchanged.
+
 ## The current mental model
 
 Use automation to detect new images and notify you. Promote a specific version or digest during a maintenance window after reviewing release notes. Back up persistent data, update one dependency group at a time, verify health and user workflows, then retain the previous image until the rollback window closes.
 
-Watchtower can still be useful, especially in monitor-only mode. Mounting `/var/run/docker.sock` gives a container powerful control over the Docker daemon, effectively a host-level trust boundary. Run only a pinned, trusted Watchtower image; limit the containers it observes with labels or an explicit list; and do not expose its API publicly.
+Do not start new setups on `containrrr/watchtower`. Upstream is archived, so it will not get fixes for Docker Engine changes or security issues. The maintainers also declined to vouch for any fork and asked users to assess forks themselves. If you already run it, check whether it can still talk to your daemon before trusting its silence (see the checklist).
+
+For discovery, a notify-only tool is enough. [Diun](https://crazymax.dev/diun/) watches the images your containers use and sends a notification when the registry has something new. It never recreates containers. If your Compose files live in Git, [Renovate](https://docs.renovatebot.com/docker/) can open a pull request with the new tag or digest instead, which leaves a review trail. Either way, any monitor that mounts `/var/run/docker.sock` has powerful control over the Docker daemon, which is effectively a host-level trust boundary. Run only a pinned, trusted image, limit what it observes, and do not expose it publicly.
 
 ## Pin the deployment
 
@@ -41,23 +45,29 @@ services:
       retries: 5
     volumes:
       - app-data:/var/lib/app
+    labels:
+      - "diun.enable=true"
 
-  watchtower:
-    image: containrrr/watchtower:1.7.1
-    command: --monitor-only --label-enable --notifications-level info
+  diun:
+    image: crazymax/diun:4.33.0
+    command: serve
     environment:
-      WATCHTOWER_SCHEDULE: "0 30 8 * * 1"
+      TZ: "UTC"
+      DIUN_WATCH_SCHEDULE: "30 8 * * 1"
+      DIUN_PROVIDERS_DOCKER: "true"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - diun-data:/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     restart: unless-stopped
 
 volumes:
   app-data:
+  diun-data:
 ```
 
-Watchtower uses a six-field cron expression that includes seconds. `0 30 8 * * 1` means Monday at 08:30. A traditional five-field expression can be rejected or mean something other than intended. Confirm the schedule in the version you actually deploy.
+Diun uses a standard five-field cron expression, so `30 8 * * 1` means Monday at 08:30 in the container's `TZ` (UTC here; set your own). Leave `DIUN_PROVIDERS_DOCKER_WATCHBYDEFAULT` at its default (`false`). Diun then checks only containers labeled `diun.enable=true`, here just `app`. Diun reports and never redeploys, so the `:ro` mount is a reminder of intent, not a security boundary: read access to the Docker socket is still powerful.
 
-The example enables monitoring only for containers labeled `com.centurylinklabs.watchtower.enable=true`. Notification configuration depends on the chosen provider; test it before relying on it.
+Notification configuration depends on the chosen provider (mail, ntfy, Slack, and others); test it before relying on it. `4.33.0` was the current Diun release when this was reviewed. Pin whatever release you verified, the same way you pin the app.
 
 ## Maintenance-window procedure
 
@@ -83,19 +93,21 @@ Do not confuse a container's `healthy` status with application acceptance. A hea
 ## Migration checklist
 
 - Replace `latest` with a version or digest.
-- Move Watchtower to monitor-only before changing deployment policy.
-- Correct schedules to six-field syntax and verify timezone.
+- If an existing host still runs `containrrr/watchtower`, check it first. Running `docker version` is read-only: compare the server's `API version ... (minimum version ...)` line with what the monitor uses, and read the monitor's logs for `client version ... is too old`. A monitor that cannot connect does not notify you, and its silence looks like "no updates".
+- Replace the archived Watchtower with a notify-only monitor or a Git-based update PR flow before changing deployment policy.
+- Confirm the monitor's cron syntax and timezone, then trigger one test notification.
 - Add real health checks and notifications.
 - Inventory volumes, databases, configuration, and secrets; document backup and restore.
 - Test one service group, dependency ordering, and rollback.
 - Remove unused images only after the rollback period.
 - Review Docker socket access and keep the management UI private.
 
-Verified on **2026-08-01**.
+Verified on **2026-10-21**.
 
 ## Primary sources
 
-- [Watchtower arguments](https://containrrr.dev/watchtower/arguments/)
-- [Watchtower lifecycle hooks](https://containrrr.dev/watchtower/lifecycle-hooks/)
+- [Goodbye containrrr/watchtower (archive announcement)](https://github.com/containrrr/watchtower/discussions/2135)
+- [Docker Engine 29 release notes (minimum API version)](https://docs.docker.com/engine/release-notes/29/)
+- [Diun Docker installation](https://crazymax.dev/diun/install/docker/) and [Docker provider](https://crazymax.dev/diun/providers/docker/)
 - [Docker Compose healthcheck reference](https://docs.docker.com/reference/compose-file/services/#healthcheck)
 - [Docker image digests](https://docs.docker.com/dhi/core-concepts/digests/)
