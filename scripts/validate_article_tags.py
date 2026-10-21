@@ -50,7 +50,9 @@ def scoped_paths():
         if not path.name.startswith(SCOPED_PREFIXES):
             continue
         text = path.read_text(encoding="utf-8")
-        if path.name.startswith("2026-08-01-") or "reviewed_at: 2026-08-01" in text:
+        # Articles reviewed in the 2026-08-01 pass stay in scope after later
+        # maintenance passes bump their reviewed_at (for example 2026-10-21).
+        if path.name.startswith("2026-08-01-") or re.search(r"^reviewed_at: 2026-", text, re.M):
             paths.append(path)
     return sorted(paths)
 
