@@ -20,6 +20,8 @@ tags:
 
 Older CDK examples often mix `@aws-cdk/*` v1 modules with `aws-cdk-lib`, target retired Lambda runtimes, and treat deployment credentials as application configuration. A current workflow uses CDK v2 consistently, an actively supported runtime, temporary operator credentials, and a reviewable synthesized template.
 
+> **Review note (2026-10-21):** The example runtime changed from `Runtime.NODEJS_22_X` to `Runtime.NODEJS_24_X`. Lambda's `nodejs22.x` is still supported, but its deprecation is scheduled for April 30, 2027. `nodejs24.x` is scheduled for April 30, 2028 ([Lambda runtimes](https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtimes.html)). Changing the runtime of an existing function is a deployment: run `cdk diff` first and test the handler on Node.js 24.
+
 ## Choose the API deliberately
 
 API Gateway HTTP APIs are usually the lower-cost, lower-complexity choice for Lambda proxy APIs. REST APIs remain appropriate when you need features specific to that product, such as usage plans or certain request transformations. A Lambda Function URL may fit a very small service with simple authorization, while an Application Load Balancer is often a better match for an existing container service.
@@ -52,7 +54,7 @@ export class ApiStack extends Stack {
     });
 
     const handler = new Function(this, "Handler", {
-      runtime: Runtime.NODEJS_22_X,
+      runtime: Runtime.NODEJS_24_X,
       handler: "index.handler",
       code: Code.fromAsset("lambda"),
       environment: { BUCKET_NAME: bucket.bucketName },
