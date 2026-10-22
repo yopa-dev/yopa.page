@@ -17,8 +17,8 @@ This ledger records the October 2026 freshness pass over every live English arti
 - 220 live articles reviewed (43 archived originals and open draft PRs excluded). 17 are evergreen non-technical posts.
 - Every article got a keyword scan for versions, runtimes, model IDs, preview/GA status, pricing, deprecations, and tsconfig/CLI snippets. About 35 high-volatility articles were read in full against primary sources.
 - 297 unique external links were checked with curl.
-- TypeScript, Node.js, and Jest snippets were reproduced locally at $0 with `typescript@7.0.2`, `typescript@6.0.3`, `ts-jest@29.4.15`, `ts-node@10.9.2`, `tsx@4.23.15`, and Node.js 24.22.0. No cloud calls were made.
-- Result: 19 articles need updates (6 high, 5 medium, 8 low), 4 could not be verified at $0, and the rest were OK.
+- TypeScript, Node.js, and Jest snippets were reproduced locally with `typescript@7.0.2`, `typescript@6.0.3`, `ts-jest@29.4.15`, `ts-node@10.9.2`, `tsx@4.23.15`, and Node.js 24.22.0. These local runs used no paid APIs and no AWS calls.
+- Result: 19 articles need updates (6 high, 5 medium, 8 low), 4 could not be verified without paid services or accounts, and the rest were OK.
 
 Fixes ship as three draft pull requests, one per severity batch, so each can be reviewed and merged independently.
 
@@ -31,7 +31,7 @@ Fixes ship as three draft pull requests, one per severity batch, so each can be 
 | `2024-02-26-Mastering-Update-Notifier-in-Node.js-with-TypeScript.md` | Update | Replace `target: es5` / `commonjs` with `es2022` / `nodenext` ESM, use JSON import attributes, and install `@types/update-notifier` (7.3.1 ships no declarations). | [TypeScript 7.0](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/), local reproduction (TS5108, TS7016) |
 | `2023-08-18-Passing-Command-Line-Arguments-to-a-TypeScript-Script-using-NPM.md` | Update | Replace `ts-node` with `node your-script-file.ts` (type stripping) and keep `tsx` as the fallback. Argument handling unchanged. | [Node.js TypeScript](https://nodejs.org/api/typescript.html), local reproduction (ts-node crash with TS 7) |
 | `2026-05-23-deploy-hermes-ai-agent-aws-ecs-fargate-slack.md` | Update | Replace the retired Model access step with the Anthropic one-time usage form, move Node.js 18/20 to 24 LTS, and correct "Fargate only supports x86_64" (ARM64 is supported and must match `cpuArchitecture`). | [Bedrock automatic enablement](https://aws.amazon.com/about-aws/whats-new/2025/10/amazon-bedrock-automatic-enablement-serverless-foundation-models/), [Node.js releases](https://nodejs.org/en/about/previous-releases), [ECS ARM64](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-arm64.html) |
-| `2026-08-01-safe-container-updates-on-a-personal-docker-host.en.md` | Update | State that `containrrr/watchtower` is archived and fails on Docker Engine 29. Replace the monitor with notify-only Diun (pinned) and Renovate, and add a read-only Docker API check. | [Archive announcement](https://github.com/containrrr/watchtower/discussions/2135), [Docker Engine 29 notes](https://docs.docker.com/engine/release-notes/29/), [issue #2124](https://github.com/containrrr/watchtower/issues/2124), [Diun docs](https://crazymax.dev/diun/install/docker/) |
+| `2026-08-01-safe-container-updates-on-a-personal-docker-host.en.md` | Update | State that `containrrr/watchtower` is archived. Watchtower 1.7.1 (client API 1.25) is rejected by Docker Engine 29.0–29.2 (minimum API 1.44) and is still below the 29.3.0+ minimum (1.40). Readers check their own daemon minimum with read-only `docker version`. Replace the monitor with notify-only Diun (pinned 4.33.0), configured to watch a semver tag line (`watch_repo` + `include_tags`). Separate "same tag changed" from "new tag found", and state that a notifier must be configured. The Diun example is docs-based and not run. | [Archive announcement](https://github.com/containrrr/watchtower/discussions/2135), [Docker Engine 29.0.0](https://docs.docker.com/engine/release-notes/29/#2900) and [29.3.0](https://docs.docker.com/engine/release-notes/29/#2930) notes, [issue #2124](https://github.com/containrrr/watchtower/issues/2124), [Diun Docker provider labels](https://crazymax.dev/diun/providers/docker/#docker-labels), [Diun watch config](https://crazymax.dev/diun/config/watch/#firstchecknotif) |
 
 ## Medium: factual drift (draft PR #126)
 
@@ -41,7 +41,7 @@ Fixes ship as three draft pull requests, one per severity batch, so each can be 
 | `2025-07-22-kiro-ide-the-smart-coding-tool-that-plans-before-it-builds.md` | Kiro Web reached GA on 2026-09-01. Drop the "preview" wording. |
 | `2025-05-25-aws-vector-databases-rag-applications-complete-architectural-decision-guide.en.md` | Add DynamoDB native vector search (GA 2026-08-05) as the "vectors on the operational table" option. |
 | `2024-04-30-Leveraging-NPX-and-NVM-for-Efficient-Backend-Development.md` | Replace the end-of-life Node.js 12/14 examples with supported LTS lines. |
-| `2024-01-25-How-to-Check-if-Google-Analytics-is-Working.md` | Universal Analytics is gone. Reframe the duplicate-tag example around GA4 and the Google tag. This is the article's first review, so it enters tag-validation scope and gains the existing `Observability` tag. |
+| `2024-01-25-How-to-Check-if-Google-Analytics-is-Working.md` | Universal Analytics is gone. Reframe the duplicate-tag example around GA4 and the Google tag. Sources: [GA4 replaced UA](https://support.google.com/analytics/answer/11583528) (UA shutdown and connected site tags) and [Google tag duplicate configuration](https://support.google.com/analytics/answer/12015327). The older connected-site-tags page (answer/9973999) now redirects to the UA notice. This is the article's first review, so it enters tag-validation scope and gains the existing `Observability` tag. |
 
 ## Low: version bumps and links (draft PR #127)
 
@@ -56,7 +56,7 @@ Fixes ship as three draft pull requests, one per severity batch, so each can be 
 | `2026-08-01-python-project-environments.en.md` | Same Python example bump. |
 | `2024-03-25-Setting-Up-a-Shortcut-for-GitHub-Copilot-in-VS-Code.md` | Lead with the built-in Chat view shortcut. Keep the custom binding as optional. |
 
-## Not changed: could not verify at $0
+## Not changed: could not verify without paid services
 
 - `2024-01-14-Freeing-Up-Ports-80-and-443-on-Synology-NAS-for-Reverse-Proxy-Usage.md`: DSM nginx template edits need a real NAS to verify. Recommend a manual check with a backup and rollback step.
 - `2026-08-24-give-every-agent-its-own-worktree.en.md`: the "Cursor Shadow Workspace" removal has no official changelog source.
@@ -70,4 +70,10 @@ Fixes ship as three draft pull requests, one per severity batch, so each can be 
 
 ## Validation
 
-Each batch runs `python3 scripts/validate_frontmatter.py`, `python3 scripts/validate_article_tags.py`, `python3 scripts/validate_expeditions.py`, `python3 -m unittest discover -s tests`, and `hugo --gc --minify` before it is pushed.
+Each batch runs `git submodule update --init`, `python3 scripts/validate_frontmatter.py`, `python3 scripts/validate_article_tags.py`, `python3 scripts/validate_expeditions.py`, `python3 -m unittest discover -s tests`, `node --test terraform/modules/website/draw_rewrite.test.mjs`, and `hugo --gc --minify` locally before it is pushed. The pull requests list the head SHA each result belongs to.
+
+## Cost and environment
+
+- Local work (doc lookups, npm installs, Node.js and pyenv checks) used no paid APIs and made no AWS calls.
+- GitHub CI on each pull request ran the repository's `plan (global)` and `plan (prod)` jobs. They assume the read-only plan role through OIDC and refresh AWS resource state for an OpenTofu plan. The deploy job was skipped and no resources were changed.
+- The actual AWS bill for those CI plan runs was not checked and is unconfirmed. This ledger does not promise $0 for future runs.

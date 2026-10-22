@@ -21,7 +21,7 @@ Automatic container replacement looks like maintenance, but it is also an unatte
 
 For a personal Docker or Synology host, the practical goal is not “never automate.” It is to separate **discovery** from **deployment** and make each update observable and recoverable.
 
-> **Review note (2026-10-21):** The August version used `containrrr/watchtower:1.7.1` as the monitor. That project is no longer maintained. Its maintainers [announced the archive](https://github.com/containrrr/watchtower/discussions/2135) on December 17, 2025, and the repository is now read-only. Separately, Docker Engine 29 [requires API v1.44 or later](https://docs.docker.com/engine/release-notes/29/), and Watchtower 1.7.1 fails against it with `client version 1.25 is too old` ([issue #2124](https://github.com/containrrr/watchtower/issues/2124)). The example now uses a maintained notify-only monitor, and the checklist adds a Docker API check. The update procedure itself is unchanged.
+> **Review note (2026-10-21):** The August version used `containrrr/watchtower:1.7.1` as the monitor. That project is no longer maintained. Its maintainers [announced the archive](https://github.com/containrrr/watchtower/discussions/2135) on December 17, 2025, and the repository is now read-only. Separately, [Docker Engine 29.0 raised the daemon's minimum API version to v1.44](https://docs.docker.com/engine/release-notes/29/#2900), and Watchtower 1.7.1 failed against it with `client version 1.25 is too old` ([issue #2124](https://github.com/containrrr/watchtower/issues/2124)). [Docker Engine 29.3.0 lowered that minimum to v1.40](https://docs.docker.com/engine/release-notes/29/#2930) (March 5, 2026). That is still above the v1.25 client version in that error. The minimum depends on the exact Engine release, so check your own daemon with `docker version` (read-only; the Server section prints `API version: ... (minimum version ...)`). The example now uses a maintained notify-only monitor, and the checklist adds that Docker API check. The update procedure itself is unchanged.
 
 ## The current mental model
 
@@ -29,7 +29,7 @@ Use automation to detect new images and notify you. Promote a specific version o
 
 Do not start new setups on `containrrr/watchtower`. Upstream is archived, so it will not get fixes for Docker Engine changes or security issues. The maintainers also declined to vouch for any fork and asked users to assess forks themselves. If you already run it, check whether it can still talk to your daemon before trusting its silence (see the checklist).
 
-For discovery, a notify-only tool is enough. [Diun](https://crazymax.dev/diun/) watches the images your containers use and sends a notification when the registry has something new. It never recreates containers. If your Compose files live in Git, [Renovate](https://docs.renovatebot.com/docker/) can open a pull request with the new tag or digest instead, which leaves a review trail. Either way, any monitor that mounts `/var/run/docker.sock` has powerful control over the Docker daemon, which is effectively a host-level trust boundary. Run only a pinned, trusted image, limit what it observes, and do not expose it publicly.
+For discovery, a notify-only tool is enough. [Diun](https://crazymax.dev/diun/) checks the images your containers use against the registry and reports what it finds. It never recreates containers. What it checks depends on its labels, and it sends notifications only after you configure a notifier (see below). If your Compose files live in Git, [Renovate](https://docs.renovatebot.com/docker/) can open a pull request with the new tag or digest instead, which leaves a review trail. Either way, any monitor that mounts `/var/run/docker.sock` has powerful control over the Docker daemon, which is effectively a host-level trust boundary. Run only a pinned, trusted image, limit what it observes, and do not expose it publicly.
 
 ## Pin the deployment
 
@@ -47,6 +47,10 @@ services:
       - app-data:/var/lib/app
     labels:
       - "diun.enable=true"
+      - "diun.watch_repo=true"
+      - "diun.sort_tags=semver"
+      - "diun.max_tags=10"
+      - 'diun.include_tags=^2\.[0-9]+\.[0-9]+$$'
 
   diun:
     image: crazymax/diun:4.33.0
@@ -67,7 +71,16 @@ volumes:
 
 Diun uses a standard five-field cron expression, so `30 8 * * 1` means Monday at 08:30 in the container's `TZ` (UTC here; set your own). Leave `DIUN_PROVIDERS_DOCKER_WATCHBYDEFAULT` at its default (`false`). Diun then checks only containers labeled `diun.enable=true`, here just `app`. Diun reports and never redeploys, so the `:ro` mount is a reminder of intent, not a security boundary: read access to the Docker socket is still powerful.
 
-Notification configuration depends on the chosen provider (mail, ntfy, Slack, and others); test it before relying on it. `4.33.0` was the current Diun release when this was reviewed. Pin whatever release you verified, the same way you pin the app.
+The labels decide which question Diun answers. They are easy to get wrong:
+
+- **Same tag only (the default).** With `diun.enable=true` alone, [`diun.watch_repo` defaults to `false`](https://crazymax.dev/diun/providers/docker/#docker-labels). Diun then compares the tag you run, `2.4.1`, with the registry. It can tell you that the image behind `2.4.1` changed, for example after a republished tag. It will not discover that `2.4.2` exists.
+- **New tags in your version line.** `diun.watch_repo=true` makes Diun fetch the repository's tags. `diun.include_tags` then narrows them with a regular expression, here plain `2.x.y` releases (no `-rc` or `latest`). `diun.sort_tags=semver` orders them by semantic version, and `diun.max_tags` caps how many it tracks. The doubled `$$` is Compose's [escape for a literal `$`](https://docs.docker.com/reference/compose-file/interpolation/), so Diun receives `...[0-9]+$`. Widen or narrow the pattern to match your upgrade policy, for example `^2\.4\.` for patch releases only.
+
+These are two different signals. "The deployed `2.4.1` image changed" is a reproducibility question; pinning by digest avoids it. "A `2.4.2` tag exists" is an upgrade candidate for the maintenance window below. If your Compose files live in Git, you can leave Diun on same-tag watching and let Renovate propose new tags as pull requests instead.
+
+Diun's first scan records what it sees without notifying ([`firstCheckNotif`](https://crazymax.dev/diun/config/watch/#firstchecknotif) defaults to `false`). Later scans report changes. Nothing reaches you until you configure a notifier (mail, ntfy, Slack, and others; see [Diun notifications](https://crazymax.dev/diun/config/notif/)). Until then, results appear only in Diun's logs.
+
+This example follows the Diun documentation, but I have not run it. After you deploy it, check the logs to confirm that Diun found `app` and lists the tags you expect, then send a test notification. A file that parses is not proof of detection. `4.33.0` was the current Diun release when this was reviewed. Pin whatever release you verified, the same way you pin the app.
 
 ## Maintenance-window procedure
 
