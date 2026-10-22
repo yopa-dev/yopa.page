@@ -1,8 +1,8 @@
 ---
 title: "AWS Strands vs LangGraph on Bedrock AgentCore: Lessons from Building an Agentic Platform"
 date: 2026-02-28
-lastmod: 2026-08-28
-reviewed_at: 2026-08-28
+lastmod: 2026-10-21
+reviewed_at: 2026-10-21
 author: Yoonsoo Park
 description: "Comparing AWS Strands and LangGraph for agentic workflows on Amazon Bedrock AgentCore through hands-on PoC experience. Covers cold start gotchas, a three-tier tool architecture pattern, async tool limitations, and honest trade-offs from building a multi-tool agent on a financial SaaS platform."
 categories:
@@ -17,11 +17,13 @@ tags:
 
 > Comparing AWS Strands and LangGraph through hands-on PoC experience on Amazon Bedrock AgentCore — real cold start numbers, a three-tier tool architecture pattern, and the async tool gap that caught us off guard.
 
-[AWS Strands Agents SDK](https://strandsagents.com/docs/user-guide/quickstart/python/) |
+[AWS Strands Agents SDK](https://strandsagents.com/docs/user-guide/quickstart/) |
 [LangGraph Documentation](https://docs.langchain.com/oss/python/langgraph/overview) |
 [Amazon Bedrock AgentCore](https://aws.amazon.com/bedrock/agentcore/)
 
 > **Review note (2026-08-28):** The measurements and deployment observations below are a February 2026 PoC snapshot. Strands, LangGraph, and AgentCore release independently; re-check the linked documentation and package versions before copying the code into a new deployment.
+
+> **Review note (2026-10-21):** The February PoC ran on Claude Sonnet 4 (`claude-sonnet-4-20250514`), which was retired on the Claude API on June 15, 2026 ([model deprecations](https://platform.claude.com/docs/en/about-claude/model-deprecations)). The code sample was moved to Sonnet 4.6 in the August review, and the diagram label no longer names a specific version. Bedrock publishes its own model lifecycle dates, so check them in the Bedrock console or documentation. The Strands quickstart link was also updated (the old `/quickstart/python/` URL returns 404).
 
 Most framework comparisons stop at "hello world." You read them, nod along, then hit a wall that the blog never mentioned. This post is the opposite of that. I want to share what actually happened when we ran both AWS Strands and LangGraph through PoCs on a financial SaaS platform, picked one, and started building a real multi-tool agent with it. Spoiler: we found a gap that made us rethink our confidence level.
 
@@ -83,7 +85,7 @@ This is the pattern we landed on through our PoC iterations. It wasn't planned u
 
 ```
 ┌─────────────────────────────────────────────┐
-│        Strands Agent (Claude Sonnet 4)      │
+│        Strands Agent (Claude Sonnet)        │
 └──────────────────┬──────────────────────────┘
                    │
      ┌─────────────┼─────────────────┐
