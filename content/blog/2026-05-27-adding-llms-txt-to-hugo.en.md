@@ -51,7 +51,7 @@ So today, `llms.txt` is closer to **good documentation hygiene** than a working 
 Two ways to add it:
 
 1. Drop a static `static/llms.txt` file. Done. Stale within a month.
-2. Generate it from your content via Hugo's [Output Formats](https://gohugo.io/templates/output-formats/) so it stays current with every post.
+2. Generate it from your content via Hugo's [Output Formats](https://gohugo.io/configuration/output-formats/) so it stays current with every post.
 
 (2) is the only correct answer for a blog where posts are added regularly.
 
