@@ -79,11 +79,13 @@ The second snippet is the `dict` problem. A Pydantic `dict[str, str]` becomes `"
 
 To see it end to end without calling AWS, I pointed `AnthropicBedrock` at an `httpx2.MockTransport` with dummy keys. Every request was answered locally. The request went to `/model/global.anthropic.claude-haiku-5-5/invoke`, and the schema in `output_config.format` was the transformed one. Then I fed back replies:
 
-| Model | Reply I fed back | What `messages.parse()` did |
-|---|---|---|
-| `WithGe` | `{"confidence": 1.4, ...}` | `ValidationError`: "Input should be less than or equal to 1" |
-| `WithPattern` | `{"ticket": "ticket 42"}` | `ValidationError`: "String should match pattern '^TCK-\d{6}$'" |
-| `WithMap` | `{"tags": {}, ...}` | returned `tags={}` with no error |
+| Constraint in the Pydantic model | Reply I fed back | What `messages.parse()` did | Does your code notice? |
+|---|---|---|---|
+| `confidence` limited to 0–1 (`Field(ge=0, le=1)`) | `{"confidence": 1.4, ...}` | `ValidationError`: "Input should be less than or equal to 1" | Yes, but only after the call is paid for |
+| `ticket` must match `^TCK-\d{6}$` (`Field(pattern=...)`) | `{"ticket": "ticket 42"}` | `ValidationError`: "String should match pattern '^TCK-\d{6}$'" | Yes, but only after the call is paid for |
+| `tags` as a map (`dict[str, str]`) | `{"tags": {}, ...}` | returned `tags={}` with no error | **No.** An empty map looks like a normal answer |
+
+Takeaway: constraints the SDK moves into `description` turn into exceptions after you pay for the call, and the `dict` field fails silently.
 
 I also checked the map case with `jsonschema`. `{"tags": {"priority": "high"}}` is valid under the original Pydantic schema and invalid under the schema the SDK sends. `{"tags": {}}` is valid under both. So under constrained decoding the model can only produce the empty map, and your code accepts it as a normal answer. Anthropic's own structured-outputs page has `messages.parse()` examples with `data: dict` and `metadata: dict` fields. By this reading of the transform, those fields can only come back empty.
 
