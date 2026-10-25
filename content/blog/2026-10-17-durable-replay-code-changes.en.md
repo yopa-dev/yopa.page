@@ -76,32 +76,34 @@ final, err = r.RunUntilComplete(in)
 validate → reserve (returns Reservation{ID: "R-42", Price: 100}) → wait "pause" 1h → charge
 ```
 
-Each case ran 20 trials per process, in 3 separate processes: 60 trials. Verdicts: **nde** (replay failed with `NonDeterministicExecutionError`), **error** (another error), **silent** (succeeded with a wrong result; for B, different from a fresh execution of v2), and **ok**. I also recorded whether a **golden-signature test** would fail: the SDK's `durabletest.AssertGoldenSignature` saves the list of operations (type, subtype, name, status) from one run and fails when a later run differs.
+Each case ran 20 trials per process, in 3 separate processes: 60 trials. Each run ended in one of four ways: replay **failed loudly** with `NonDeterministicExecutionError`, it failed with **another error**, it **succeeded with a wrong result** (for Group B, a result different from a fresh execution of v2), or it **worked correctly**. I also recorded whether a **golden-signature test** would fail: the SDK's `durabletest.AssertGoldenSignature` saves the list of operations (type, subtype, name, status) from one run and fails when a later run differs.
 
 ## Group B: code changed while the execution was paused
 
-| Case | Change in v2 | Resumed on v2 (60 trials) | Golden signature fails | durablelint |
-|---|---|---|---|---|
-| B01 | rename a finished step | nde 60 | yes | no |
-| B02 | swap two finished steps | nde 60 | yes | no |
-| B03 | insert a step before the wait | nde 60 | yes | no |
-| B05 | remove a finished step | nde 60 | yes | no |
-| B11 | rename the wait it is paused on | nde 60 | yes | no |
-| B12 | wrap a finished step in a child context, same name | nde 60 | yes | no |
-| B07 | change a finished step's result type (struct to int) | error 60 (`SerdesError`) | no | no |
-| B08 | rename a JSON tag in a finished step's result | **silent 60** | no | no |
-| B13 | add a field to a finished step's result | **silent 60** | no | no |
-| B09 | change the logic inside a finished step | **silent 60** | no | no |
-| B04 | insert a step after the wait | ok 60 | yes | no |
-| B06 | remove a step that has not run | ok 60 | yes | no |
-| B10 | change the wait's duration | ok 60 | no | no |
-| B14 | no code change: flip an environment variable read between steps | nde 60 | no | no |
+| What changed in v2 while the execution was paused | What happened when it resumed on v2 | Would a golden-signature test fail? | Does durablelint flag it? |
+|---|---|---|---|
+| Rename a finished step | Fails loudly: `NonDeterministicExecutionError`, 60 of 60 | Yes | No |
+| Swap two finished steps | Fails loudly: `NonDeterministicExecutionError`, 60 of 60 | Yes | No |
+| Insert a step before the wait | Fails loudly: `NonDeterministicExecutionError`, 60 of 60 | Yes | No |
+| Remove a finished step | Fails loudly: `NonDeterministicExecutionError`, 60 of 60 | Yes | No |
+| Rename the wait it is paused on | Fails loudly: `NonDeterministicExecutionError`, 60 of 60 | Yes | No |
+| Wrap a finished step in a child context, same name | Fails loudly: `NonDeterministicExecutionError`, 60 of 60 | Yes | No |
+| Change a finished step's result type (struct to int) | Fails with another error: `SerdesError`, 60 of 60 | No | No |
+| Rename a JSON tag in a finished step's result | **Succeeds with a wrong result, 60 of 60** | **No** | **No** |
+| Add a field to a finished step's result | **Succeeds with a wrong result, 60 of 60** | **No** | **No** |
+| Change the logic inside a finished step | **Succeeds with a wrong result, 60 of 60** | **No** | **No** |
+| Insert a step after the wait | Works correctly, 60 of 60 | Yes (a false alarm) | No |
+| Remove a step that has not run | Works correctly, 60 of 60 | Yes (a false alarm) | No |
+| Change the wait's duration | Works correctly, 60 of 60 | No | No |
+| No code change: flip an environment variable read between steps | Fails loudly: `NonDeterministicExecutionError`, 60 of 60 | No | No |
 
-Every B result was the same in all 60 trials. These are not flaky. They follow from the check above.
+Takeaway: three of these changes resume without any error and give a wrong answer, and neither a golden-signature test nor durablelint catches them.[^cases]
+
+Every Group B result was the same in all 60 trials. These are not flaky. They follow from the check above.
 
 ### The loud ones say exactly what happened
 
-The error from B01 is a good error:
+The error from renaming a finished step is a good error:
 
 ```text
 durable: non-deterministic replay at step "c81e728d9d4c2f63": the checkpoint recorded
@@ -109,13 +111,13 @@ operation (type STEP, subtype "Step", name "reserve"), but the handler now runs
 (type STEP, subtype "Step", name "reserve-stock"). The handler code changed between deployments.
 ```
 
-B12 is the one I would have gotten wrong in review. Wrapping `reserve` in `durable.RunInChildContext(ctx, "reserve", ...)` keeps the name, so it looks harmless. But the type changes from `STEP` to `CONTEXT`, and replay fails.
+Wrapping a finished step in a child context is the one I would have gotten wrong in review. Wrapping `reserve` in `durable.RunInChildContext(ctx, "reserve", ...)` keeps the name, so it looks harmless. But the type changes from `STEP` to `CONTEXT`, and replay fails.
 
-B03 versus B04 is the rule for adding steps. A new step in the part that already ran shifts every position after it, and fails. The same step after the paused point runs normally, because no record exists there yet. So the rule is not "add steps at the end." It is "add steps after the furthest point any in-flight execution has reached," and you usually do not know where that is.
+Inserting a step before the wait versus after it is the rule for adding steps. A new step in the part that already ran shifts every position after it, and fails. The same step after the paused point runs normally, because no record exists there yet. So the rule is not "add steps at the end." It is "add steps after the furthest point any in-flight execution has reached," and you usually do not know where that is.
 
 ### The silent ones are about step results, not step order
 
-A step's saved result is JSON. On replay the SDK decodes the old JSON into the new Go type. B08 changed one struct tag:
+A step's saved result is JSON. On replay the SDK decodes the old JSON into the new Go type. The JSON tag rename changed one struct tag:
 
 ```go
 type Reservation struct {
@@ -124,35 +126,37 @@ type Reservation struct {
 }
 ```
 
-The saved record has `"id": "R-42"`, the new type looks for `reservation_id`, and Go's JSON decoder leaves the field empty without an error. The execution succeeded and returned `charged  100`, with the reservation ID missing (the double space is where `R-42` should be). A fresh run of the same v2 code returns `charged R-42 100`. B13 is the same mechanism from the other side: the new `Currency` field does not exist in the old record, so it decodes to `""`.
+The saved record has `"id": "R-42"`, the new type looks for `reservation_id`, and Go's JSON decoder leaves the field empty without an error. The execution succeeded and returned `charged  100`, with the reservation ID missing (the double space is where `R-42` should be). A fresh run of the same v2 code returns `charged R-42 100`. Adding a field is the same mechanism from the other side: the new `Currency` field does not exist in the old record, so it decodes to `""`.
 
-B07 is the loud version: decoding a saved JSON object into an `int` fails with `json: cannot unmarshal object into Go value of type int`. Among result-type changes, the more drastic one is the safer one.
+Changing the result type is the loud version: decoding a saved JSON object into an `int` fails with `json: cannot unmarshal object into Go value of type int`. Among result-type changes, the more drastic one is the safer one.
 
-B09 changed the price inside `reserve` from 100 to 120, a bug fix. The paused execution kept 100, because replay returns the saved result. That is intended, and it is what you want for a step that charged a card. But a fix to a finished step never reaches executions that already passed it. B10 is the same for waits: the paused execution kept its recorded 3600 seconds, while a fresh v2 execution recorded 86400.
+The logic change raised the price inside `reserve` from 100 to 120, a bug fix. The paused execution kept 100, because replay returns the saved result. That is intended, and it is what you want for a step that charged a card. But a fix to a finished step never reaches executions that already passed it. Changing the wait's duration is the same for waits: the paused execution kept its recorded 3600 seconds, while a fresh v2 execution recorded 86400.
 
-### B14: no code change at all
+### An environment variable, with no code change at all
 
-B14 has one handler. It reads `os.Getenv("FRAUD_CHECK")` between steps and runs an extra `fraud-check` step when it is `on`. I set it to `off` for the first invocation and `on` before the resume. Replay failed 60 of 60 times, like B03. No code changed, so neither durablelint nor a golden signature can see it. Environment variables are part of a [published version's snapshot](https://docs.aws.amazon.com/lambda/latest/dg/configuration-versions.html), so pinning should freeze this one too (not tested on the service). A value read between steps from outside that snapshot, such as a parameter store or a flag service, would break replay by the same mechanism; I did not test those.
+This case has one handler. It reads `os.Getenv("FRAUD_CHECK")` between steps and runs an extra `fraud-check` step when it is `on`. I set it to `off` for the first invocation and `on` before the resume. Replay failed 60 of 60 times, like inserting a step before the wait. No code changed, so neither durablelint nor a golden signature can see it. Environment variables are part of a [published version's snapshot](https://docs.aws.amazon.com/lambda/latest/dg/configuration-versions.html), so pinning should freeze this one too (not tested on the service). A value read between steps from outside that snapshot, such as a parameter store or a flag service, would break replay by the same mechanism; I did not test those.
 
 ## Group A: the same code, replayed
 
 Pinning a version keeps the code fixed. It does not make the code deterministic.
 
-| Case | Bug | durablelint | Replayed (60 trials) |
-|---|---|---|---|
-| A01 | `time.Now()` between steps, used as a key | yes | **silent 60** |
-| A02 | `rand.Uint64()` between steps, used as a key | yes | **silent 60** |
-| A06 | the same clock read, inside a helper with no `durable.Context` | **no** | **silent 60** |
-| A03 | a random branch adds a step before the wait | yes | nde 43, ok 17 |
-| A04 | `range` over a map, one step per key | yes | nde 31, ok 29 |
-| A05 | map keys copied to a slice without sorting, one step per key | **no** | nde 41, ok 19 |
-| A08 | plain goroutines call `durable.Step` on the parent context | yes | failed on the first invocation, 60 |
-| A07 | `ctx.RequestID()` between steps, used as a key | yes | ok 60 (cannot reproduce locally) |
-| A09 | control: key made in a step, `durable.ExecutionStartTime`, sorted keys | no findings | ok 60 |
+| Bug in the handler | Does durablelint flag it? | What happened on replay (60 trials) |
+|---|---|---|
+| `time.Now()` between steps, used as a key | Yes | **Succeeded with a wrong result, 60 of 60** |
+| `rand.Uint64()` between steps, used as a key | Yes | **Succeeded with a wrong result, 60 of 60** |
+| The same clock read, inside a helper with no `durable.Context` | **No** | **Succeeded with a wrong result, 60 of 60** |
+| A random branch adds a step before the wait | Yes | Failed loudly 43 times, worked 17 times |
+| `range` over a map, one step per key | Yes | Failed loudly 31 times, worked 29 times |
+| Map keys copied to a slice without sorting, one step per key | **No** | Failed loudly 41 times, worked 19 times |
+| Plain goroutines call `durable.Step` on the parent context | Yes | Failed on the first invocation, 60 of 60 |
+| `ctx.RequestID()` between steps, used as a key | Yes | Worked, 60 of 60 (the local runner can't reproduce this bug) |
+| Control: key made in a step, `durable.ExecutionStartTime`, sorted keys | No findings | Worked, 60 of 60 |
+
+Takeaway: the three key bugs never fail, they just write inconsistent data, and durablelint misses two of the eight bugs, including one of those three.
 
 ### The worst bugs here never fail
 
-A01, A02 and A06 make a key between steps and pass it to two steps on either side of the wait:
+The `time.Now()`, `rand.Uint64()` and helper-clock bugs make a key between steps and pass it to two steps on either side of the wait:
 
 ```go
 key := time.Now().UnixNano() // outside any step
@@ -164,17 +168,17 @@ c, err := durable.Step(ctx, "charge", func(durable.StepContext) (int64, error) {
 
 On replay, `reserve` returns the key saved in the first invocation, while the line above it computes a new one for `charge`. The two keys differed in all 180 trials across the three cases, and every execution succeeded. If those were idempotency keys for a payment API, the API could not tell the two calls belong together, and nothing in the execution history would look wrong.
 
-The fix is the control, A09: make the key inside a step so it is saved once, and use `durable.ExecutionStartTime(ctx)` for a timestamp. A09 passed 60 of 60, with the same start time in both invocations.
+The fix is the control: make the key inside a step so it is saved once, and use `durable.ExecutionStartTime(ctx)` for a timestamp. The control passed 60 of 60, with the same start time in both invocations.
 
 ### Where durablelint is blind, it says so
 
-durablelint flagged A01 and A02 at the right line, with a useful message:
+durablelint flagged the `time.Now()` and `rand.Uint64()` bugs at the right line, with a useful message:
 
 ```text
 time.Now is nondeterministic and is called outside a step body; move it into a durable.Step or use durable.ExecutionStartTime
 ```
 
-It missed A06 and A05, and both gaps are written down in the rule's own description:
+It missed the clock read inside a helper and the unsorted copy of map keys, and both gaps are written down in the rule's own description:
 
 ```text
 Limitations: only functions that receive a durable.Context are analysed;
@@ -182,7 +186,7 @@ a helper without a Context parameter that reads the clock is not reported
 even when the handler calls it between operations.
 ```
 
-The map rule reports "a range statement over a map whose body creates durable operations." In A05 the loop over the map only copies the keys into a slice:
+The map rule reports "a range statement over a map whose body creates durable operations." In the unsorted-copy bug the loop over the map only copies the keys into a slice:
 
 ```go
 names := make([]string, 0, len(items))
@@ -194,21 +198,21 @@ for _, name := range names {
 }
 ```
 
-The order is just as random as in A04, and A05 failed replay 41 times out of 60. But the loop that creates the steps ranges over a slice, so the rule does not fire. A clean lint run means "none of the patterns it knows," not "deterministic." On the control, A09, it reported nothing, so I saw no false positives.
+The order is just as random as with the plain `range` over the map, and this version failed replay 41 times out of 60. But the loop that creates the steps ranges over a slice, so the rule does not fire. A clean lint run means "none of the patterns it knows," not "deterministic." On the control it reported nothing, so I saw no false positives.
 
 ### Random failures make bad tests
 
-A03, A04 and A05 fail only when a replay takes a different path than the first invocation. In one process A04 failed 5 of 20 trials, in another 14 of 20. A test that runs such a handler once will often pass, and a golden-signature test on these three is itself flaky: it failed in 22 to 47 of 60 trials.
+The random branch and the two map bugs fail only when a replay takes a different path than the first invocation. In one process the plain map `range` failed 5 of 20 trials, in another 14 of 20. A test that runs such a handler once will often pass, and a golden-signature test on these three is itself flaky: it failed in 22 to 47 of 60 trials.
 
 The rate is not portable either. Every execution in my harness replayed twice (the `Run` then `RunUntilComplete` path took 3 invocations; I counted). On the service, one wait might mean one replay. Read these as "fails at random," not as a production rate.
 
-### A07: the local runner cannot show this one
+### `ctx.RequestID()`: the local runner cannot show this one
 
-durablelint warns that `Context.RequestID` "changes on every invocation of an execution." Under the local runner, `ctx.RequestID()` returned `""` in both invocations, so the key matched on both sides of the wait and A07 passed all 60 trials. The runner numbers its invocations (`local-request-1`, `local-request-2`), but that value does not reach the handler. For this bug, the linter is the only local check that works.
+durablelint warns that `Context.RequestID` "changes on every invocation of an execution." Under the local runner, `ctx.RequestID()` returned `""` in both invocations, so the key matched on both sides of the wait and the bug passed all 60 trials. The runner numbers its invocations (`local-request-1`, `local-request-2`), but that value does not reach the handler. For this bug, the linter is the only local check that works.
 
 ## What to pin at deploy time
 
-**1. Invoke a published version or an alias, never `$LATEST`, for anything that can pause across a deploy.** The [docs](https://docs.aws.amazon.com/lambda/latest/dg/durable-invoking.html) say an execution is pinned to the version that started it and resumes on that version. If so, every row of the B table turns into "nothing happens," B14 included. That is documented behavior; I did not test it on the service. My inference from it: the version an execution started on has to stay available until that execution ends.
+**1. Invoke a published version or an alias, never `$LATEST`, for anything that can pause across a deploy.** The [docs](https://docs.aws.amazon.com/lambda/latest/dg/durable-invoking.html) say an execution is pinned to the version that started it and resumes on that version. If so, every row of the Group B table turns into "nothing happens," the environment-variable row included. That is documented behavior; I did not test it on the service. My inference from it: the version an execution started on has to stay available until that execution ends.
 
 **2. Run durablelint in CI, plus two review rules for its blind spots.** It caught 6 of the 8 in-version bugs with no false positive on the control. For the two it missed: no clock, random, or ID calls in helpers that orchestration code calls between steps; and sort map keys before any loop that creates steps, even when the map loop only collects keys.
 
@@ -257,9 +261,9 @@ func TestPausedExecutionResumesOnNewCode(t *testing.T) {
 }
 ```
 
-The test only reads and compares; it creates nothing. I ran this exact code against B01 (failed with the rename error), B08 (failed with `resumed result "charged  100", fresh result "charged R-42 100"`), and B04 (passed). Limits: it checks only the first wait, it needs a frozen copy of the deployed handler in your repo, and a failure is not always a bug. B09 fails it because the paused execution keeps the old price, which may be what you want. Read the failure before "fixing" it.
+The test only reads and compares; it creates nothing. I ran this exact code against the step rename (failed with the rename error), the JSON tag rename (failed with `resumed result "charged  100", fresh result "charged R-42 100"`), and a step inserted after the wait (passed). Limits: it checks only the first wait, it needs a frozen copy of the deployed handler in your repo, and a failure is not always a bug. The price fix inside a finished step fails it because the paused execution keeps the old price, which may be what you want. Read the failure before "fixing" it.
 
-A golden-signature test is cheaper, since it needs no copy of the old code. Among the 13 code changes it flagged 8: the 6 that failed with `NonDeterministicExecutionError`, plus 2 false alarms on safe changes (B04, B06). It missed all 4 that change what a step returns (B07, B08, B09, B13), because it compares operation names, not values.
+A golden-signature test is cheaper, since it needs no copy of the old code. Among the 13 code changes it flagged 8: the 6 that failed with `NonDeterministicExecutionError`, plus 2 false alarms on safe changes (inserting a step after the wait, removing a step that has not run). It missed all 4 that change what a step returns (the result type, the JSON tag, the new field and the logic change), because it compares operation names, not values.
 
 ## What I did not test
 
@@ -276,3 +280,5 @@ A golden-signature test is cheaper, since it needs no copy of the old code. Amon
 - [Best practices for Lambda durable functions](https://docs.aws.amazon.com/lambda/latest/dg/durable-best-practices.html)
 - [Manage Lambda function versions](https://docs.aws.amazon.com/lambda/latest/dg/configuration-versions.html): what a version snapshot includes
 - Experiment code and raw output: [yopa-experiments](https://github.com/ypark9/yopa-experiments/tree/experiment/durable-replay-code-changes-20261017/2026-10-17-durable-replay-code-changes)
+
+[^cases]: The experiment repo names these cases `B01` to `B14` (code changed between versions) and `A01` to `A09` (same code replayed). They only matter if you want to find a row's raw output there.
