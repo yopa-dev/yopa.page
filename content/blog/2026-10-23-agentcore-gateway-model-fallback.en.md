@@ -28,7 +28,7 @@ That's the feature working as designed, and it's also the risk. So my question i
 - **Fallback fires only on the triggers you list.** Those are HTTP 4xx/5xx codes or classes, plus up to three connection-level conditions: `CONNECTION_ERROR`, `FIRST_BYTE_TIMEOUT` and `UNROUTABLE`. "2xx and 3xx responses are never fallback-eligible." So a 200 with a bad answer never falls back. When every destination fails, "the caller receives the last error."
 - **The breaker matters most for stalls, not throttles.** In my mock, a primary returning 429 in 60 ms costs a request almost nothing before falling back, and the breaker cut p95 latency only from 1,743 ms to 1,686 ms. A primary that stalls costs every request the full first-byte timeout. There the breaker cut p95 from 6,683 ms to 1,697 ms.
 - **The breaker's thresholds aren't published or configurable.** The local botocore 1.43.118 model accepts only `circuitBreaker.mode` (`ENABLED`/`DISABLED`), and anything else is rejected client-side. How many failures open it, how long it stays open and how big the half-open "small portion" is are not documented. Recovery time depends on them. Across 12 assumed combinations, 13 to 144 requests (3 to 29 seconds at 5 requests/s) were still served off the primary after it recovered.
-- **The breaker can cost more when the primary is the cheap one.** The guide says so itself: you might turn it off "to keep using a cheaper primary rather than failing fast to a costlier secondary." In my flapping-primary story (30% 503s, fallback 4× the price), model spend was 56% higher with the breaker on: 817.5 vs 525 units.
+- **The breaker can cost more when the primary is the cheap one.** The guide says so itself: you might turn it off "to keep using a cheaper primary rather than failing fast to a costlier secondary." In my flapping-primary story (30% 503s, fallback 4× the price), model spend was about 56% higher with the breaker on: 817.5 vs 525 cost units, where 1 unit is the price of one answer from the expensive model (817.5 ÷ 525 ≈ 1.56).
 - **Silent model switching is the failure mode to design for.** When both same-model destinations failed, 655 of 1,500 requests in my mock got HTTP 200 from the degraded model with zero caller errors, and every one of them had a different output shape. Only a client-side check catches that.
 - **SDK retries multiply gateway attempts.** The Bedrock SDK retries throttling, and each retry walks the whole chain again. With everything throttled for two minutes and standard retry mode's 3 attempts, the gateway made 6,272 billed attempts for 1,500 requests with the breaker off, and 2,718 with it on. About 590 requests failed either way.
 
@@ -67,7 +67,7 @@ I checked the request shapes against the botocore 1.43.118 service model on my m
 - an abandoned attempt bills 30% of a request's model cost
 - the response body names the served model
 
-Each story runs 1,500 requests at 5 per second, with an incident from t = 60 s to t = 180 s. Model costs are relative units, not dollars.
+Each story runs 1,500 requests at 5 per second, with an incident from t = 60 s to t = 180 s. Model costs are relative units, not dollars: **1 unit is the price of one request answered by the big model**, and the small model costs 0.25 units per answer. So 1,500 big-model answers with no incident would cost 1,500 units. I can't turn units into dollars, because the price per call depends on your model and prompt size.
 
 The default chain is a "big" model on `bedrock`, then the same model on `openai`, then a "small" model on `bedrock` at a quarter of the price. That is the shape of AWS's own example, which degrades `gpt-5.5` to `gpt-5.4` only "if neither can serve the request".
 
@@ -85,7 +85,7 @@ The primary returns 429 for two minutes. Here's the breaker timeline from the mo
 | 184.0 | open → half-open | timer (the primary recovered at 180) |
 | 189.8 | half-open → closed | 3 probe successes |
 
-| | Breaker on | Breaker off |
+| Over 1,500 requests | Breaker on | Breaker off |
 |---|---|---|
 | Caller errors | 0 | 0 |
 | Gateway invocations billed | 1,513 | 2,100 |
@@ -99,10 +99,13 @@ The breaker saved 587 gateway invocations, about $0.003 at $0.005 per 1,000. A f
 
 Now the primary accepts the connection and never sends a byte. Every attempt costs the full `firstByteTimeoutMilliseconds`.
 
-| | Breaker on | Breaker off, 5,000 ms timeout | Breaker off, 1,000 ms timeout |
+| Over 1,500 requests | Breaker on | Breaker off, 5,000 ms timeout | Breaker off, 1,000 ms timeout |
 |---|---|---|---|
 | p95 latency | 1,697 ms | 6,683 ms | 2,683 ms |
-| Model cost units | 1,503.9 | 1,680.0 | 1,680.0 |
+| Model spend (units; 1 = one big-model answer) | 1,503.9 | 1,680.0 | 1,680.0 |
+| Model spend compared with breaker on | — | about 12% more | about 12% more |
+
+Takeaway: with a stalling primary, the breaker cut p95 latency by about 5 seconds against a 5,000 ms timeout, and model spend by about 10% (1,680.0 − 1,503.9 = 176.1 units, roughly 176 big-model answers' worth, and 176.1 ÷ 1,680.0 ≈ 10.5%).
 
 This is where the breaker earns its keep. With the breaker on, the worst request (6,730 ms) was a half-open probe that hit the stall. The model-cost row depends on my assumption that an abandoned attempt still bills input tokens. AWS doesn't say, and the owner-run measures it.
 
@@ -113,7 +116,7 @@ Both same-model destinations fail: the primary with 429, the same model on the o
 - Caller errors: **0**.
 - 655 of 1,500 responses came from the small model, and 7 from the second provider before its breaker opened.
 - All 655 had a different output shape. In this toy, the big model returns `{"label": ..., "confidence": ...}` and the small one returns fenced JSON without `confidence`. The rate is 100% by construction; the point is that HTTP status said 200 every time.
-- Model spend fell to 1,008.75 units. A cost dashboard would show this incident as a good day.
+- Model spend fell to 1,008.75 units, about 33% below the 1,500 units that 1,500 big-model answers would cost (1,008.75 ÷ 1,500 ≈ 0.67). A cost dashboard would show this incident as a good day.
 
 If you depend on structured outputs, remember that the fallback model may not take the same schema features. Check your output contract against every model in the chain, not only the primary.
 
@@ -121,7 +124,7 @@ If you depend on structured outputs, remember that the fallback model may not ta
 
 A shared quota or a regional event throttles all three destinations. The client is boto3 in standard retry mode with `max_attempts` 3. botocore 1.43.118 still defaults to `legacy` mode, which allows up to 5 attempts, so an untuned client multiplies even more. The [InvokeModel guide](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-target-inference-invokemodel.html) confirms the SDK "retries throttling and transient server errors".
 
-| | Breaker on | Breaker off |
+| Over 1,500 requests | Breaker on | Breaker off |
 |---|---|---|
 | Caller errors | 592 | 590 |
 | Gateway invocations billed | 2,718 | 6,272 |
@@ -133,14 +136,16 @@ With the breaker off, every request walks three destinations, up to three times.
 
 The primary is the small model, failing 30% of requests with 503 during the incident. The only fallback is the big model at 4× the price.
 
-| | Breaker on | Breaker off |
+| Over 1,500 requests | Breaker on | Breaker off |
 |---|---|---|
-| Model cost units | 817.5 | 525.0 |
-| Served by the 4× fallback | 590 | 200 |
+| Model spend (units; 1 = one big-model answer, the small primary is 0.25) | 817.5 | 525.0 |
+| Requests served by the 4× fallback | 590 | 200 |
 | p50 latency | 821 ms | 740 ms |
 | Caller errors | 0 | 0 |
 
-With the breaker on, each opening sends *all* traffic to the expensive model for the whole open period, including the 70% the primary would have served. Across all 12 assumed combinations of open duration (5–60 s) and probe fraction (5–25%), spend with the breaker on stayed between 729 and 871.5 units. It was never close to 525. This is the case where AWS suggests `DISABLED`.
+Takeaway: turning the breaker on raised model spend by about 56% (817.5 − 525.0 = 292.5 extra units, the price of about 290 extra big-model answers) with no fewer errors.
+
+With the breaker on, each opening sends *all* traffic to the expensive model for the whole open period, including the 70% the primary would have served. Across all 12 assumed combinations of open duration (5–60 s) and probe fraction (5–25%), spend with the breaker on stayed between 729 and 871.5 units, which is about 39% to 66% more than the 525 units with the breaker off. It was never close. This is the case where AWS suggests `DISABLED`.
 
 ### Story F: misconfigured primary
 
