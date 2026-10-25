@@ -138,17 +138,18 @@ The Node docs list these as known limits, and every one of them reproduced:
 
 ## What I would do
 
-This adds a row to the decision table in [where to run agent-generated code](/blog/2026-07-02-where-to-run-agent-generated-code.html), the cheapest option that post skipped: a permission flag inside the runtime, on the same host.
+The decision table in [where to run agent-generated code](/blog/2026-07-02-where-to-run-agent-generated-code.html) needs a distinction between preventing mistakes in trusted code and isolating code that may be malicious. A permission flag inside the runtime can help with the first. These probes do not establish it as a boundary for the second, even when the code only needs to compute.
 
 | Situation | What to reach for |
 | --- | --- |
-| Third-party or model-written JS that only computes (no files, network, or secrets), and you are moving off Deno | Node 26 with `--permission`, an empty environment, no inherited handles, and a separate OS user. Self-test the exact launch line. |
-| The same, but you are stuck on Node 22 or 24 | `--permission` is not a network wall there. You need a network block outside Node (not tested here), or stay on Deno while it still gets security fixes. |
-| The code needs network, files, or secrets to do its job | A real boundary: a MicroVM or container, as in the earlier post. A runtime flag is the wrong layer. |
+| Code you trust, where you want to catch accidental file or network access | Node 26 with `--permission`, a minimal environment and no unnecessary inherited handles. Self-test the exact launch line as a configuration check. |
+| Trusted code on Node 22 or 24 that must not reach the network | The tested permission flags do not block the network. Add an external network policy if needed (not tested here). |
+| Third-party or model-written code that could be malicious, even if it only computes | Use isolation enforced outside the runtime, such as a suitably configured MicroVM or hardened container, as in the earlier post. Limit mounts, credentials, network and resources. I did not test those configurations here. |
+| Untrusted code that needs files, network or secrets | Keep the external isolation boundary and grant only the specific resources it needs. A runtime flag is an extra check, not the boundary. |
 
-The first row has several parts, and I measured only some of them. The empty environment, the network block on 26, and the self-test below are measured. The separate OS user comes from Node's own docs. I did not test it here.
+The empty environment, the network block on the tested Node 26 build, and the self-test below are measured. A separate OS user, as Node's docs recommend for the sibling-debugger issue, can reduce shared authority, but I did not test it. That change alone would not turn `--permission` into a malicious-code sandbox.
 
-Before you trust a launch line, test it. This script is read-only. It checks that the Node you have actually has a network permission. Then it runs a tiny program through the exact command and confirms two things: the network is refused by the permission model, not just by a closed port, and the environment is empty.
+Before relying on those two configuration settings, test the launch line. This read-only script checks that the Node you have actually has a network permission. It then confirms that this one network request is refused by the permission model, not just by a closed port, and that the environment is empty. A pass says those checks worked. It does not prove that malicious code cannot escape.
 
 ```sh
 #!/bin/sh
@@ -180,7 +181,7 @@ esac
 
 On my box it failed on Node 22 and 24 at step 1, and passed on Node 26. I also checked that it can fail on 26. With `env -i` removed, it reported the visible environment. With `--permission` removed, it reported that the network was not denied. One catch about the port: I first used port 9, and `fetch` refused it for a different reason, because port 9 is on fetch's list of blocked ports. That is why the script checks the error code instead of treating any failure as a pass.
 
-The script does not cover SQLite or the debugger signal. Those stay open on every Node version I tested, and that is the reason for the separate OS user.
+The script does not cover SQLite or the debugger signal. Those stayed open on every Node version I tested. A separate OS user addresses shared authority with sibling processes; it does not close every runtime bypass. Keep untrusted code behind an external isolation boundary even when this script passes.
 
 ## What I did not test
 
