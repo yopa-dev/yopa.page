@@ -44,7 +44,7 @@ The interesting shift since 2025 is that the top and bottom of this table now **
 
 This is the service that didn't exist when I first wrote this guide, and it changes the economics enough to deserve top billing.
 
-S3 Vectors is the first object store with **native vector storage and query** — you create vector indexes inside S3 and query them through a dedicated API, with no cluster to provision. AWS positions it as reducing the cost of uploading, storing, and querying vectors **by up to 90%** versus running an always-on vector database.
+S3 Vectors is the first object store with **native vector storage and query** — you create vector indexes inside S3 and query them through a dedicated API, with no cluster to provision. AWS positions it as reducing the cost of uploading, storing, and querying vectors **by up to 90%** versus running an always-on vector database. That is AWS's ceiling, not my measurement: if an always-on store costs you $1,000 a month, "up to 90%" means the same vectors could cost as little as $100 a month in S3 Vectors, and your own query volume decides how close you get.
 
 **Key facts:**
 
@@ -64,7 +64,7 @@ OpenSearch remains the answer when you need **high QPS at sub-second (often sing
 **Strengths:**
 
 - Multiple engines (FAISS, Lucene, NMSLIB) with HNSW, IVF, and product quantization.
-- Aggressive compression: binary quantization (~32x) and product quantization, plus disk-optimized ANN that cuts memory needs substantially.
+- Aggressive compression: binary quantization (each dimension stored as 1 bit instead of a 4-byte float, so a 1,024-dimension vector drops from 4,096 bytes to 128 bytes, 32 times smaller) and product quantization, plus disk-optimized ANN that cuts memory needs substantially.
 - Serverless option with pay-per-OCU autoscaling for spiky traffic.
 - Metadata filtering integrated with k-NN for multi-tenancy.
 
@@ -76,7 +76,7 @@ If your vectors live next to relational data, `pgvector` is the path of least re
 
 **Strengths:**
 
-- HNSW indexes, `halfvec` (50% memory reduction), sparse and binary vector types.
+- HNSW indexes, `halfvec` (2 bytes per dimension instead of 4, so a 1,536-dimension vector shrinks from about 6 KB to about 3 KB), sparse and binary vector types.
 - Iterative index scans (0.8.x) that prevent over-filtering when you combine `WHERE` clauses with vector search.
 - Graviton instances for better price/performance; Aurora Serverless v2 scales down for variable load.
 

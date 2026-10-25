@@ -61,6 +61,8 @@ The one way out of that last check is the list returned by `_slack_api_human_use
 | `SLACK_API_HUMAN_USERS=U0XXXXXXX` | API posts whose `user` is in the list, which here means only me | You maintain a list of user IDs |
 | `SLACK_ALLOW_BOTS=mentions` | Any bot or app message that @mentions Hermes | Every bot in the workspace can reach Hermes with a mention |
 
+Takeaway: the first setting lets in one person, me; the second lets in every bot and integration anyone in the workspace installs.
+
 The cost of the second row is bigger than it looks. Hermes has a separate allowlist of humans, `SLACK_ALLOWED_USERS`. I expected it to still apply to bots. It does not. This is the authorization check in `gateway/authz_mixin.py` on the same branch:
 
 ```python
