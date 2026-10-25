@@ -58,15 +58,17 @@ After every install I ran a smoke test: `require()` each package and call it. Th
 
 ## What the pipeline sees
 
-| Case | npm | Command | Exit | After install |
+| What I ran | npm version | Exit code | Would CI fail? | Do the two modules load afterwards? |
 |---|---|---|---|---|
-| c01 | 11.21.1 | `npm install` | 0 | both modules load |
-| c02 | 12.2.1 | `npm install` | **0** | both fail: `Cannot find module './build/Release/nativedemo.node'`, `Cannot find module './generated.js'` |
-| c03 | 12.2.1 | `npm ci --silent`, lockfile written by npm 11 | **0** | both fail, and the log is empty |
-| c05 | 12.2.1 | `npm install --strict-allow-scripts` | **1** | `ESTRICTALLOWSCRIPTS`, nothing installed |
-| c06 | 12.0.0 | `npm install` with `strict-allow-scripts=true` in `.npmrc` | 1 | same error on the first npm 12 release |
+| Plain `npm install`, the old baseline | 11.21.1 | 0 | No | Yes, both load |
+| Plain `npm install` after the upgrade | 12.2.1 | **0** | **No** | No, both fail: `Cannot find module './build/Release/nativedemo.node'`, `Cannot find module './generated.js'` |
+| `npm ci --silent` with a lockfile written by npm 11 (the usual CI job) | 12.2.1 | **0** | **No** | No, both fail, and the log is empty |
+| `npm install --strict-allow-scripts` | 12.2.1 | **1** | Yes | Nothing is installed; the error is `ESTRICTALLOWSCRIPTS` |
+| Plain `npm install` with `strict-allow-scripts=true` in `.npmrc` | 12.0.0 | 1 | Yes | Nothing is installed; same error on the first npm 12 release |
 
-c03 is the common CI shape: a lockfile from before the npm upgrade, `npm ci`, and a quiet log level. Its entire log is the command line and the exit code:
+Takeaway: on npm 12 the install "succeeds" with both modules missing, and only strict mode turns that into a failed build.[^ids]
+
+The third row is the common CI shape: a lockfile from before the npm upgrade, `npm ci`, and a quiet log level. Its entire log is the command line and the exit code:
 
 ```text
 $ npm ci --silent --registry http://127.0.0.1:4873/ --no-audit --no-fund --cache $TMP/cache12
@@ -99,10 +101,12 @@ This is the same trap I hit with [ECS deployments that report "completed" with n
 
 The docs point you to a read-only listing: `npm install-scripts ls`, or its alias `npm approve-scripts --allow-scripts-pending`. It is useful at a desk. I wanted to know whether it could fail a build.
 
-| Case | When | Output | Exit |
+| When I ran `npm install-scripts ls` | What it printed | Exit code | Would CI fail? |
 |---|---|---|---|
-| c04 | after an install, 2 packages pending | lists both | **0** |
-| g5 | fresh checkout, before any install | `No packages with unreviewed install scripts.` | **0** |
+| Right after `npm install`, with 2 packages not yet approved | Both packages | **0** | **No.** It found problems and still reported success |
+| A fresh checkout, before anything is installed (how every CI job starts) | `No packages with unreviewed install scripts.` | **0** | **No.** It found nothing, because nothing was installed yet |
+
+Takeaway: this command never fails a build, so `npm install-scripts ls && ...` does not protect you.
 
 It exits 0 when there is something to review, so `&&` will not stop on it. And it reads what is installed in `node_modules`, not the lockfile. On the fresh checkout a CI job starts from, it tells you there is nothing to review. The lockfile does carry the signal: npm 11's lockfile for this project had `"hasInstallScript": true` on both packages. But nothing in npm turns that into a failure unless you use strict mode.
 
@@ -121,9 +125,9 @@ npm rebuild
 "allowScripts": { "nativedemo@1.0.0": true, "postdemo@1.0.0": true }
 ```
 
-`npm rebuild` ran both scripts and both modules loaded (c07). A fresh clone with that `package.json` committed passed `npm ci` and loaded both too (c08).
+`npm rebuild` ran both scripts and both modules loaded. A fresh clone with that `package.json` committed passed `npm ci` and loaded both too.
 
-Then I did what a dependency bot does and bumped `nativedemo` to 1.0.1 (c09):
+Then I did what a dependency bot does and bumped `nativedemo` to 1.0.1:
 
 ```text
 changed 1 package in 220ms
@@ -172,20 +176,22 @@ node -e 'for (const m of process.argv.slice(1)) require(m); console.log("loaded:
 
 Run it as `ci-gate.sh sqlite3`, with your own native dependencies as the arguments. [`npm ci`](https://docs.npmjs.com/cli/v12/commands/npm-ci/) replaces `node_modules` without updating `package.json` or the lockfile. It can also write npm's cache and run lifecycle scripts allowed by your configuration. Those scripts run with your user's permissions; their writes are not confined to the checkout. Run the gate in a disposable CI environment with only the files and credentials the build needs.
 
-When the strict `npm install` failed in c05 and c06, it left no `node_modules` folder behind. g1, g2 and g7 ran this exact file (`scripts/ci-gate.sh` in the experiment repo) against the stand-ins. g3, g4 and g6 ran only the strict `npm ci` step, with a different setup:
+When the strict `npm install` failed in the table above, it left no `node_modules` folder behind. I ran this exact file (`scripts/ci-gate.sh` in the experiment repo) against the stand-ins in three situations: no approvals, approvals committed, and no lockfile. For the other three rows I ran only the strict `npm ci` step:
 
-| Case | Setup | Exit |
-|---|---|---|
-| g1 | npm 12.2.1, lockfile with no approvals | **1**, `ESTRICTALLOWSCRIPTS` lists both packages |
-| g2 | npm 12.2.1, `allowScripts` committed | 0, `loaded: nativedemo postdemo` |
-| g3 | npm 12.2.1, `strict-allow-scripts=true` in the project `.npmrc`, plain `npm ci` | 1 |
-| g4 | **npm 11.21.1**, `npm ci --strict-allow-scripts` | 1 |
-| g7 | npm 12.2.1, no `package-lock.json` | 1, the preflight refuses before installing |
-| g6 | npm 12.2.1, `nativedemo` approved, `postdemo` denied with `false`, strict `npm ci` | **0**, no warning, and `require('postdemo')` fails |
+| Situation | What ran | Exit code | Does the build stop? |
+|---|---|---|---|
+| npm 12.2.1, lockfile but no approvals in `package.json` | the whole gate | **1** | **Yes.** `ESTRICTALLOWSCRIPTS` lists both packages |
+| npm 12.2.1, `allowScripts` committed for both packages | the whole gate | 0 | No, and that is right: it prints `loaded: nativedemo postdemo` |
+| npm 12.2.1, no `package-lock.json` in the repo | the whole gate | 1 | Yes. The preflight refuses before anything is installed |
+| npm 12.2.1, `strict-allow-scripts=true` in the project `.npmrc`, plain `npm ci` | strict `npm ci` only | 1 | Yes |
+| **npm 11.21.1**, `npm ci --strict-allow-scripts` | strict `npm ci` only | 1 | **Yes, already on npm 11** |
+| npm 12.2.1, `nativedemo` approved, `postdemo` denied with `false` | strict `npm ci` only | **0** | **No.** No warning either, yet `require('postdemo')` fails |
 
-g4 is the useful surprise. The strict flag is already on npm 11.21.1, so you can turn it on now, sort out approvals while npm 11 still runs the scripts, and upgrade npm later. (npm 11.21.1's own warning already points to `npm install-scripts approve`. I did not run `approve` on npm 11.) The `.npmrc` form (g3) is the one to commit, so local installs and CI follow the same rule.
+Takeaway: strict mode stops the build whenever a script is unreviewed, even on npm 11, but a package you explicitly denied gets through, and only the `require()` line catches it.
 
-The `require()` line matters even with strict mode on, and g6 shows why. Strict mode checks your policy. A package you denied passes it silently, and the install exits 0. If that package did need its script, only loading it will tell you. The same goes for a prebuilt binary that does not exist for the platform you deploy to.
+The useful surprise is the npm 11.21.1 row. The strict flag is already on npm 11.21.1, so you can turn it on now, sort out approvals while npm 11 still runs the scripts, and upgrade npm later. (npm 11.21.1's own warning already points to `npm install-scripts approve`. I did not run `approve` on npm 11.) The `.npmrc` form is the one to commit, so local installs and CI follow the same rule.
+
+The `require()` line matters even with strict mode on, and the last row shows why. Strict mode checks your policy. A package you denied passes it silently, and the install exits 0. If that package did need its script, only loading it will tell you. The same goes for a prebuilt binary that does not exist for the platform you deploy to.
 
 ## What I did not measure
 
@@ -211,3 +217,5 @@ For the Python side of keeping dependency updates reviewable, see [Safely Update
 - [npm CLI v12.0.0 release notes](https://github.com/npm/cli/releases/tag/v12.0.0)
 - [npm docs (v12): `npm install-scripts`](https://docs.npmjs.com/cli/v12/commands/npm-install-scripts/) and [config: `strict-allow-scripts`](https://docs.npmjs.com/cli/v12/using-npm/config/)
 - Found through GeekNews Weekly's link to "Thank you, Deno", which notes npm 12's move to not running install scripts by default
+
+[^ids]: The experiment repo names these runs with short case IDs (`c01` to `c09` for installs, `g1` to `g7` for the gate). They only matter if you want to match a row to its raw log there.
