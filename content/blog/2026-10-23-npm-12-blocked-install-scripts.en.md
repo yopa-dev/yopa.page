@@ -170,7 +170,9 @@ npm ci --strict-allow-scripts
 node -e 'for (const m of process.argv.slice(1)) require(m); console.log("loaded:", process.argv.slice(1).join(" "))' "$@"
 ```
 
-Run it as `ci-gate.sh sqlite3`, with your own native dependencies as the arguments. `npm ci` only writes `node_modules` inside the checkout. When the strict `npm install` failed in c05 and c06, it left no `node_modules` folder behind. g1, g2 and g7 ran this exact file (`scripts/ci-gate.sh` in the experiment repo) against the stand-ins. g3, g4 and g6 ran only the strict `npm ci` step, with a different setup:
+Run it as `ci-gate.sh sqlite3`, with your own native dependencies as the arguments. [`npm ci`](https://docs.npmjs.com/cli/v12/commands/npm-ci/) replaces `node_modules` without updating `package.json` or the lockfile. It can also write npm's cache and run lifecycle scripts allowed by your configuration. Those scripts run with your user's permissions; their writes are not confined to the checkout. Run the gate in a disposable CI environment with only the files and credentials the build needs.
+
+When the strict `npm install` failed in c05 and c06, it left no `node_modules` folder behind. g1, g2 and g7 ran this exact file (`scripts/ci-gate.sh` in the experiment repo) against the stand-ins. g3, g4 and g6 ran only the strict `npm ci` step, with a different setup:
 
 | Case | Setup | Exit |
 |---|---|---|
