@@ -1,8 +1,8 @@
 ---
 title: Update Notifications in Node.js with TypeScript
 date: 2024-02-26
-lastmod: 2026-08-01
-reviewed_at: 2026-08-01
+lastmod: 2026-10-21
+reviewed_at: 2026-10-21
 author: Yoonsoo Park
 description: "Explore how to integrate and leverage the update-notifier package in your TypeScript-based Node.js applications, including advanced usage and detailed examples."
 categories:
@@ -18,6 +18,8 @@ tags:
 
 ![TypeScript with Update-Notifier](images/oni-red-flag.webp)
 
+> **Review note (2026-10-21):** The original `tsconfig.json` used `"target": "es5"`. TypeScript 6.0 deprecated it and TypeScript 7.0 removed it (`TS5108`). The config is now ESM (`"module": "nodenext"`), which matches `update-notifier` being an ES module. JSON imports now use `with { type: "json" }`. The install step now adds `@types/update-notifier`, because `update-notifier` 7.3.1 ships no type declarations.
+
 Keeping your Node.js application up-to-date is crucial for security, performance, and feature enhancements. The `update-notifier` npm package, when used with TypeScript, provides a powerful yet straightforward way to notify users of your application about new updates. This blog delves into the integration of `update-notifier` within a TypeScript environment, covering both basic and advanced usages with detailed code examples.
 
 ## Introduction to Update-Notifier with TypeScript
@@ -26,33 +28,44 @@ Keeping your Node.js application up-to-date is crucial for security, performance
 
 ### Setting Up Your TypeScript Project
 
-Before diving into `update-notifier`, ensure your TypeScript environment is set up. You'll need a `tsconfig.json` file configured for your project. Here's a basic setup:
+Before diving into `update-notifier`, ensure your TypeScript environment is set up. `update-notifier` is an ES module, so mark the project as ESM in `package.json`:
+
+```json
+{
+  "type": "module"
+}
+```
+
+Then configure `tsconfig.json` for Node.js ESM:
 
 ```json
 {
   "compilerOptions": {
-    "target": "es5",
-    "module": "commonjs",
+    "target": "es2022",
+    "module": "nodenext",
     "strict": true,
-    "esModuleInterop": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "types": ["node"]
   }
 }
 ```
 
-The `resolveJsonModule` option in `compilerOptions` allows TypeScript to natively import JSON modules, such as your `package.json` file. This is crucial for `update-notifier` to access the current version and package name.
+The `resolveJsonModule` option in `compilerOptions` allows TypeScript to import JSON modules, such as your `package.json` file. This is crucial for `update-notifier` to access the current version and package name. Under `"module": "nodenext"`, an ESM JSON import needs an import attribute: `import pkg from "./package.json" with { type: "json" };`. The `types` entry is needed because TypeScript 6.0 and later default `types` to `[]`.
+
+Do not use `"target": "es5"`. TypeScript 7.0 rejects it with `TS5108: Option 'target=ES5' has been removed`, and current Node.js LTS releases run ES2022 natively.
 
 ### Installing Update-Notifier
 
-Current `update-notifier` releases include TypeScript declarations and are ESM. Confirm the package version and Node module mode before using the examples. Notifications should be disabled in CI and non-interactive output, and should never block the command.
+Current `update-notifier` releases are ESM-only and do not bundle TypeScript declarations. Confirm the package version and Node module mode before using the examples. Notifications should be disabled in CI and non-interactive output, and should never block the command.
 
 To add `update-notifier` to your project, run:
 
 ```bash
 npm install update-notifier
+npm install --save-dev @types/update-notifier @types/node
 ```
 
-The second command installs the TypeScript type definitions for `update-notifier`, allowing for type checking and IntelliSense in your IDE.
+The second command installs the TypeScript type definitions for `update-notifier`, allowing for type checking and IntelliSense in your IDE. Run `npx tsc --noEmit` once before adding notification logic. If it reports `TS7016: Could not find a declaration file for module 'update-notifier'`, the type package is missing.
 
 ## Basic Usage in TypeScript
 
@@ -60,7 +73,7 @@ After ensuring your `tsconfig.json` is properly configured to import JSON module
 
 ```typescript
 import updateNotifier from "update-notifier";
-import pkg from "./package.json";
+import pkg from "./package.json" with { type: "json" };
 
 const notifier = updateNotifier({
   pkg,
@@ -83,7 +96,7 @@ You can prompt users interactively to update their application using `inquirer` 
 ```typescript
 import updateNotifier from "update-notifier";
 import inquirer from "inquirer";
-import pkg from "./package.json";
+import pkg from "./package.json" with { type: "json" };
 import { execSync } from "child_process";
 
 const notifier = updateNotifier({ pkg });
@@ -111,8 +124,8 @@ if (notifier.update) {
 You can customize the notification message based on the update type (major, minor, patch) using TypeScript's enum and type checking features:
 
 ```typescript
-import updateNotifier, { UpdateInfo } from "update-notifier";
-import pkg from "./package.json";
+import updateNotifier, { type UpdateInfo } from "update-notifier";
+import pkg from "./package.json" with { type: "json" };
 
 const notifier = updateNotifier({ pkg });
 
@@ -145,7 +158,7 @@ For more detailed logging, especially useful in debugging or maintaining logs, y
 
 ```typescript
 import updateNotifier from "update-notifier";
-import pkg from "./package.json";
+import pkg from "./package.json" with { type: "json" };
 
 const notifier = updateNotifier({ pkg });
 

@@ -1,8 +1,8 @@
 ---
 title: "Deploy Your Own AI Agent to AWS — Hermes on ECS Fargate with Slack Integration"
 date: 2026-05-23
-lastmod: 2026-08-28
-reviewed_at: 2026-08-28
+lastmod: 2026-10-21
+reviewed_at: 2026-10-21
 author: Yoonsoo Park
 description: "A May 2026 field guide to deploying NousResearch's Hermes Agent on AWS ECS Fargate with Slack integration, persistent memory on EFS, and a knowledge base on S3. The upstream image, configuration schema, and storage paths change quickly, so verify the current Hermes documentation before applying the snippets."
 categories:
@@ -29,6 +29,8 @@ tags:
 
 > **Review note (2026-08-28):** This article records a deployment from May 23, 2026. Hermes now documents a supported Docker path using the `nousresearch/hermes-agent` image and persistent data mounted at `/opt/data`; schema migrations can create backups. The ECS/CDK architecture below is illustrative for this snapshot. Inspect the current [release page](https://github.com/NousResearch/hermes-agent/releases) and [configuration reference](https://hermes-agent.nousresearch.com/docs/user-guide/configuration) before copying it, and never overwrite a mounted config or secret store blindly.
 
+> **Review note (2026-10-21):** Three setup claims from the May snapshot were wrong or have aged out, and are corrected below. (1) Bedrock no longer has a Model access page. Since October 15, 2025, serverless models are enabled by default, but Anthropic models still need a one-time usage form before first use ([AWS announcement](https://aws.amazon.com/about-aws/whats-new/2025/10/amazon-bedrock-automatic-enablement-serverless-foundation-models/)). (2) Node.js 18 and 20 are end-of-life, so the CDK prerequisite and the container now use Node.js 24 LTS ([Node.js release status](https://nodejs.org/en/about/previous-releases)). (3) Fargate is not x86_64-only. It also runs 64-bit ARM (Graviton) tasks ([Amazon ECS ARM64 guide](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-arm64.html)). This stack still pins `X86_64`, so the `linux/amd64` build stays correct. The ARM64 option is described in the build step.
+
 Most AI agent tutorials end at "run it locally." That's fine for demos, but useless for teams. You want an always-on assistant that your team can DM on Slack, that remembers past conversations, that can read your documentation and use external tools — and that doesn't die when your laptop goes to sleep.
 
 This post documents how I deployed [Hermes Agent](https://github.com/NousResearch/hermes-agent) — an open-source AI agent framework by NousResearch — to AWS ECS Fargate, connected it to Slack via Socket Mode, backed it with Claude on Bedrock, and gave it persistent memory on EFS with a knowledge base on S3. The code blocks are copy-paste-able for that May snapshot only; validate image tags, configuration keys, and mount paths against the current upstream docs. Every gotcha is one I actually hit.
@@ -46,14 +48,14 @@ A single Hermes Agent running on ECS Fargate that:
 
 ## Prerequisites
 
-- AWS account with Bedrock model access enabled (Claude models in us-east-1)
+- AWS account where Bedrock can invoke Anthropic Claude models in us-east-1 (one-time Anthropic usage form submitted, see below)
 - AWS CLI v2 configured with credentials
-- Node.js 18+ and npm (for CDK)
+- Node.js 22 or 24 LTS and npm (for CDK). Node.js 18 and 20 are end-of-life
 - Docker Desktop
 - A Slack workspace where you can install apps
 - Basic familiarity with CDK, Docker, and ECS concepts
 
-> **Important:** Enable Bedrock model access first. Go to AWS Console → Bedrock → Model access → Request access to Anthropic Claude models. This can take minutes to hours.
+> **Important:** There is no Model access page to visit anymore. Since October 15, 2025, Amazon Bedrock enables serverless foundation models by default in commercial Regions. Anthropic models are the exception: they still require a one-time usage form before first use. Submit it either through the API or by selecting an Anthropic model in the Bedrock console playground. If you submit it from an AWS Organizations management account, it applies to all member accounts. Access can still be restricted with IAM policies and SCPs, so if invocation fails with `AccessDeniedException`, check those as well (see troubleshooting item 7).
 
 ---
 
@@ -406,8 +408,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN curl -sS "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" \
     && unzip -q awscliv2.zip && ./aws/install && rm -rf aws awscliv2.zip
 
-# Node.js 20 (required for MCP servers which run via npx)
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+# Node.js 24 LTS (required for MCP servers which run via npx)
+RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
@@ -441,7 +443,7 @@ ENTRYPOINT ["/home/hermes/entrypoint.sh"]
 - **python:3.11-slim**: Small base, fewer CVEs than full image
 - **ripgrep**: Hermes uses it for fast text search in knowledge files
 - **AWS CLI v2**: The entrypoint syncs knowledge from S3 at runtime
-- **Node.js 20**: MCP servers (like Jira, GitHub integrations) run via `npx`
+- **Node.js 24 LTS**: MCP servers (like Jira, GitHub integrations) run via `npx`. Node.js 20 reached end-of-life, so do not pin it in new images
 - **uv**: 10–100x faster than pip for package installation
 - **`hermes-agent[all]`**: Full agent framework with all extras (memory, MCP, vision, audio)
 - **`anthropic[bedrock]`**: Enables Bedrock as the inference provider (IAM auth, no API key needed)
@@ -452,8 +454,11 @@ ENTRYPOINT ["/home/hermes/entrypoint.sh"]
 ```bash
 cd docker/
 
-# Build (use --platform on Apple Silicon)
+# Build for the architecture the task definition declares (X86_64 in this stack)
 docker build --platform linux/amd64 -t hermes-agent:latest .
+
+# Read-only check: the image architecture must match cpuArchitecture
+docker image inspect hermes-agent:latest --format '{{.Os}}/{{.Architecture}}'
 
 # Login to ECR
 aws ecr get-login-password --region us-east-1 | \
@@ -467,7 +472,7 @@ docker push \
   <YOUR_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/hermes-agent:latest
 ```
 
-> **Apple Silicon note**: The `--platform linux/amd64` flag is required. Fargate only supports x86_64 images. Cross-compilation adds ~2 minutes to build time.
+> **Apple Silicon note**: Fargate supports both x86_64 and 64-bit ARM (Graviton) tasks. What has to match is the image architecture and the task definition's `runtimePlatform.cpuArchitecture`. This stack declares `ecs.CpuArchitecture.X86_64`, so on an Apple Silicon Mac keep `--platform linux/amd64`. Emulated cross-builds took about 2 minutes longer in my runs. To run on ARM64 instead, change three things together: set `cpuArchitecture: ecs.CpuArchitecture.ARM64`, build with `--platform linux/arm64`, and switch the AWS CLI installer in the Dockerfile to `awscli-exe-linux-aarch64.zip`. ARM64 on Fargate requires platform version 1.4.0 or later, and the ECS documentation lists one us-east-1 Availability Zone (`use1-az3`) without Fargate ARM64 support. Changing only one side gives you an image the task cannot start.
 
 ---
 
