@@ -92,34 +92,36 @@ Every test result overwrites the entry for its repo and commit, so "the latest r
 
 ## Result 1: who gets the verdict right
 
-"Rule says" is what the owner of the rule wants. A mark means the gate disagreed.
+"Rule says" is what the owner of the rule wants. A **bold** verdict means the gate got it wrong.
 
-| Trace | What happens | Rule says | A stateless | B in-memory | C Dogwood, scoped | Launch post policy, unscoped |
-| --- | --- | --- | --- | --- | --- | --- |
-| T1 | Tests fail, push 5 s later | DENY | DENY | DENY | DENY | DENY |
-| T2 | Tests pass, push 5 s later | ALLOW | ALLOW | ALLOW | ALLOW | ALLOW |
-| T3 | Tests pass, push 17 min later | DENY | **ALLOW** | DENY | DENY | DENY |
-| T4 | Pass, then fail, then push | DENY | **ALLOW** | DENY | DENY | DENY |
-| T5 | No test run, agent claims they passed | DENY | **ALLOW** | DENY | DENY | DENY |
-| T6 | Tests pass, harness restarts, push | ALLOW | ALLOW | **DENY** | ALLOW | ALLOW |
-| T7 | Tests pass, owner re-applies the same policies with `install()`, push | ALLOW | ALLOW | ALLOW | **DENY** | **DENY** |
-| T8 | Tests pass, owner widens the push window to 30 min with `batch(Update)`, push | ALLOW | ALLOW | ALLOW | **DENY** | **DENY** |
-| T9 | Same as T8, then tests run again, push | ALLOW | ALLOW | ALLOW | ALLOW | ALLOW |
-| T10 | Tests pass on repo A, push on repo B | DENY | **ALLOW** | DENY | DENY | **ALLOW** |
-| T11 | Tests pass on commit X, push commit Y in the same repo | DENY | **ALLOW** | DENY | DENY | **ALLOW** |
-| T12 | Tests pass on repo A, fail on repo B, push repo A | ALLOW | ALLOW | ALLOW | ALLOW | **DENY** |
+| What happens | Rule says | A stateless | B in-memory | C Dogwood, scoped | Launch post policy, unscoped |
+| --- | --- | --- | --- | --- | --- |
+| Tests fail, push 5 s later | DENY | DENY | DENY | DENY | DENY |
+| Tests pass, push 5 s later | ALLOW | ALLOW | ALLOW | ALLOW | ALLOW |
+| Tests pass, push 17 min later | DENY | **ALLOW** | DENY | DENY | DENY |
+| Pass, then fail, then push | DENY | **ALLOW** | DENY | DENY | DENY |
+| No test run, agent claims they passed | DENY | **ALLOW** | DENY | DENY | DENY |
+| Tests pass, harness restarts, push | ALLOW | ALLOW | **DENY** | ALLOW | ALLOW |
+| Tests pass, owner re-applies the same policies with `install()`, push | ALLOW | ALLOW | ALLOW | **DENY** | **DENY** |
+| Tests pass, owner widens the push window to 30 min with `batch(Update)`, push | ALLOW | ALLOW | ALLOW | **DENY** | **DENY** |
+| Same as the row above, then tests run again, push | ALLOW | ALLOW | ALLOW | ALLOW | ALLOW |
+| Tests pass on repo A, push on repo B | DENY | **ALLOW** | DENY | DENY | **ALLOW** |
+| Tests pass on commit X, push commit Y in the same repo | DENY | **ALLOW** | DENY | DENY | **ALLOW** |
+| Tests pass on repo A, fail on repo B, push repo A | ALLOW | ALLOW | ALLOW | ALLOW | **DENY** |
 
-T1 to T9 use one repo and one commit. T10 to T12 are the shared-history cases.
+The first nine rows use one repo and one commit. The last three are the shared-history cases.
 
-Gate A's misses are the point of this post. In T5 nothing was tested at all; the agent just said so. My [older post on irreversible actions](/blog/2026-08-24-gate-irreversible-actions-in-code.html) has the rule for this: if the model can write the token that unlocks the action, it is not a gate. A `tests_passed: true` field is that token.
+Takeaway: the stateless gate allowed 5 bad pushes out of 12 situations. Gates B and C were wrong only by blocking good pushes (B once, C twice), which costs a test run, not a bad push. The unscoped launch-post policy got all three shared-history rows wrong, and two of those were bad pushes it allowed.[^traces]
 
-Gate B's miss is the honest cost of the simple version. It fails closed, so the restart in T6 cost one extra test run, not a bad push. Whether that matters depends on how often your harness restarts and how slow your tests are.
+Gate A's misses are the point of this post. In the "agent claims they passed" row nothing was tested at all; the agent just said so. My [older post on irreversible actions](/blog/2026-08-24-gate-irreversible-actions-in-code.html) has the rule for this: if the model can write the token that unlocks the action, it is not a gate. A `tests_passed: true` field is that token.
 
-The last column is the pitfall I almost shipped. On one repo and one commit, the launch post's policy matches the scoped one on every trace. Once the history is shared, it fails in both directions. In T10 it allowed a push to repo B because repo A had just gone green, which is exactly the bad push the rule exists to stop. T11 is the same hole inside one repo: the agent tests one commit, then pushes another. In T12 it blocked a good push to repo A because repo B's tests failed, since "no run has failed since" also counts every repo. The scoped policy got all three right, and so did gate B once it was keyed the same way.
+Gate B's miss is the honest cost of the simple version. It fails closed, so the harness restart cost one extra test run, not a bad push. Whether that matters depends on how often your harness restarts and how slow your tests are.
+
+The last column is the pitfall I almost shipped. On one repo and one commit, the launch post's policy matches the scoped one on every trace. Once the history is shared, it fails in both directions. It allowed a push to repo B because repo A had just gone green, which is exactly the bad push the rule exists to stop. The commit X / commit Y row is the same hole inside one repo: the agent tests one commit, then pushes another. And it blocked a good push to repo A because repo B's tests failed, since "no run has failed since" also counts every repo. The scoped policy got all three right, and so did gate B once it was keyed the same way.
 
 ## Result 2: two things about Dogwood the launch post does not stress
 
-**Re-applying policies resets their history.** T7 is the one that surprised me. I called `install()` again with the exact same policy text, the way a deploy script or a config reload would, and the next push was denied. The source says this is intended. This is the comment on `install` in the engine's `durable.rs`:
+**Re-applying policies resets their history.** The `install()` row is the one that surprised me. I called `install()` again with the exact same policy text, the way a deploy script or a config reload would, and the next push was denied. The source says this is intended. This is the comment on `install` in the engine's `durable.rs`:
 
 ```rust
 /// Semantics are **reborn-all**, not prospective: this models
@@ -130,7 +132,7 @@ The last column is the pitfall I almost shipped. On one repo and one commit, the
 /// policies untouched; this method deliberately does not.
 ```
 
-In plain words: `install()` deletes every policy and adds them back, so every policy forgets what it has seen, even if you passed in the exact same text. If you want history to survive, you have to send only the change with `batch`. Even then, the policy you changed starts over, which is T8. The launch post explains the reason (the engine prunes events it no longer needs, so a new policy cannot look back), but it only shows the single-policy case.
+In plain words: `install()` deletes every policy and adds them back, so every policy forgets what it has seen, even if you passed in the exact same text. If you want history to survive, you have to send only the change with `batch`. Even then, the policy you changed starts over, which is the `batch(Update)` row in the table. The launch post explains the reason (the engine prunes events it no longer needs, so a new policy cannot look back), but it only shows the single-policy case.
 
 In practice this means a policy change is also a "run the tests again" event. It fails closed, which is the right direction. But if your harness reloads policies on every deploy, your agent will be blocked after every deploy until it runs the tests again, and unless your harness says why, the agent only sees a deny.
 
@@ -246,3 +248,5 @@ Whichever you pick, the engine only decides. The harness still has to send it ev
 - [dogwood-local-engine on crates.io](https://crates.io/crates/dogwood-local-engine), version 1.0.0.
 
 The harness and the full output of the run used here are in [yopa-experiments](https://github.com/ypark9/yopa-experiments/tree/13785fac5baf9daf546740011b03f383eeefb23e/2026-10-09-push-only-after-green-tests). It ran on 2026-10-09 on a Linux VM with rustc 1.99.0. No cloud resources, no model calls, cost $0.
+
+[^traces]: In the experiment output the rows are traces `T1` to `T12`, in the same order as the table.
