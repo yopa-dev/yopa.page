@@ -22,6 +22,8 @@ On 2026-10-21, [LiteLLM](https://docs.litellm.ai/) — an open-source proxy that
 
 PyPI removed 1.107.0. I checked the public JSON API on 2026-10-23: the latest version is `1.106.2`, and `1.107.0` is gone. I did **not** download the malicious wheel.
 
+LiteLLM published its [final attack-chain report](https://docs.litellm.ai/blog/security-incident-oct-21-2026-attack-chain) on October 23. It supersedes the initial post's evolving root-cause account; the initial post remains the reference for affected artifacts and remediation. The experiment below tests install behavior, not the attack chain.
+
 The vendor posts answer how the release pipeline was abused. They do not answer the question I care about as someone who installs Python LLM tooling:
 
 **During that two-hour window, which of the install lines teams already use would have installed the bad release, and which refuse by construction?**
@@ -109,9 +111,9 @@ pip install --uploaded-prior-to 2026-10-21T12:00:00Z supplydemo
 
 **A version pin to a release you already trust still works** — here `==1.0.0`. A pin that you update automatically to "latest" during the window does not; it is the unpinned case with extra steps.
 
-**Hash pinning refuses a substituted file.** When the requirements file asked for `1.1.0` but carried the clean wheel's SHA-256, pip refused. That is the defense against "same version string, different bytes," which is what happened: the public GitHub tag for 1.107.0 did not contain the malware; the published wheels did.
+**Hash pinning checks the bytes against a digest you already trust.** When the requirements file asked for `1.1.0` but carried the clean wheel's SHA-256, pip refused. That checks a digest mismatch; it does not establish which wheel is safe. A lockfile generated from the malicious wheel would record its hash and accept that same wheel later. The clean GitHub source tag and the compromised PyPI wheels were different artifacts, so the tag's contents alone could not supply a trusted digest for the wheels.
 
-**A time gate is not "use latest, but carefully."** `--exclude-newer T` means *only artifacts uploaded before T*. If T is after the attacker published, the bad wheel is eligible. A rolling cooldown (for example "nothing newer than 24 hours") can still admit a bad release that is already a few hours old, or refuse *everything* if your only candidates are fresher than the cooldown. The useful form for an incident like this is: freeze installs to "uploaded before we last verified," or pin hashes of known-good files.
+**A time gate is not "use latest, but carefully."** `--exclude-newer T` means *only artifacts uploaded before T*. If T is after the attacker published, the bad wheel is eligible. A rolling 24-hour cooldown would exclude a release only a few hours old. It can admit a malicious release once that release is older than 24 hours and still available, or refuse everything if every candidate is newer than the cutoff. For this roughly two-hour incident, that cooldown would have kept the bad upload out during the exposure window. Age is still not a safety check: use a cutoff before the suspect upload, or digests of artifacts you independently trust.
 
 ## What I did not measure
 
