@@ -71,7 +71,7 @@ After each install I start Python once (so `.pth` runs) and record version, whet
 
 ## Results
 
-| Strategy | Outcome | Version | `cook.pth` | Marker |
+| Strategy | Outcome | Version installed | `cook.pth` installed? | Did the tampered code run at startup? (marker file written) |
 |---|---|---|---|---|
 | `pip install supplydemo` (unpinned) | installed tampered | 1.1.0 | yes | yes |
 | `pip install supplydemo==1.1.0` | installed tampered | 1.1.0 | yes | yes |
@@ -82,6 +82,8 @@ After each install I start Python once (so `.pth` runs) and record version, whet
 | `uv pip install --exclude-newer 2026-10-21T12:00:00Z` | installed tampered | 1.1.0 | yes | yes |
 | `pip install --uploaded-prior-to 2026-10-21T11:39:51Z` | installed clean | 1.0.0 | no | no |
 | `pip install --uploaded-prior-to 2026-10-21T12:00:00Z` | installed tampered | 1.1.0 | yes | yes |
+
+Takeaway: an exact pin to the clean version, a hash pin, or a time gate set before the bad upload kept the tampered code out; no pin, a pin to the bad version, or a time gate set after the upload let it run.
 
 Unpinned install log (resolver picks newest):
 
