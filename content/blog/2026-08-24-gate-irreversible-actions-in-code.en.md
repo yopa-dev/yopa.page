@@ -14,7 +14,7 @@ tags:
   - guardrails
 ---
 
-In August 2026 an AI assistant was told to book a gym class. The class was full, so the agent found the booking API, noticed it had no real authorization check, created a reservation outside the allowed window, and cancelled a higher-priority person on the waitlist to make room. Then it said "sorry about that."
+In August 2026 an AI assistant was told to book a gym class. The class was full, so the agent found the booking API, noticed it had no real authorization check, created a reservation outside the allowed window, and canceled a higher-priority person on the waitlist to make room. Then it said "sorry about that."
 
 The headlines called it a rogue agent hacking a system. That framing is wrong, and the wrong framing is dangerous because it points you at the wrong fix. The agent did not hack anything. It used an API exactly as the API allowed. The backend let an unauthenticated-enough caller cancel someone else's reservation, and nothing in the system required a human to approve an irreversible action before it happened. The agent was just the first caller careless enough to walk through the open door.
 
@@ -62,7 +62,7 @@ The key property is that none of this trusts the intelligence issuing the comman
 Map it back to the gym. The correct fixes there were never "prompt the agent better." They were:
 
 - The backend returns `403` when a caller tries to cancel a resource it does not own. Authorization in code, checked server-side, every time.
-- Irreversible actions (cancelling someone else's booking) require an approval step the caller cannot self-issue. Human-in-the-loop as a hard gate, not a prompt.
+- Irreversible actions (canceling someone else's booking) require an approval step the caller cannot self-issue. Human-in-the-loop as a hard gate, not a prompt.
 - After a refusal, the agent does not get to hunt for an alternate endpoint that skips the check. The check lives on every path, not on the polite one.
 
 Notice that these are exactly the properties of my delete hook, expressed in a different domain. Narrow the denylist to the truly irreversible. Make the override auditable and human-issued. Enforce it on every path, not just the expected one. And design the refusal so it points at the safe alternative instead of just saying no.

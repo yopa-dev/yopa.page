@@ -73,7 +73,7 @@ remote: error: cannot lock ref 'refs/heads/main': is at 91d2bd2d... but expected
  ! [remote rejected]   HEAD -> main (failed to update ref)
 ```
 
-The retry loop is `git pull --rebase` followed by `git push`, repeated until the push succeeds. Each round lets one more agent in, so the total is close to K(K+1)/2. For K = 32 that is 528, which one trial hit exactly. The last agent needed 32 attempts. Ten seconds doesn't sound like much, but the setup was favourable. Client and server were on the same disk with no network latency, every commit touched a different file, and nothing ran CI between attempts. Over a real network, each round trip makes the race window wider.
+The retry loop is `git pull --rebase` followed by `git push`, repeated until the push succeeds. Each round lets one more agent in, so the total is close to K(K+1)/2. For K = 32 that is 528, which one trial hit exactly. The last agent needed 32 attempts. Ten seconds doesn't sound like much, but the setup was favorable. Client and server were on the same disk with no network latency, every commit touched a different file, and nothing ran CI between attempts. Over a real network, each round trip makes the race window wider.
 
 This is where Anthropic's design differs most directly from git. In Scion, commits and merges happen on the server and are cheap, and moving a ref is described as "a compare-and-swap on a single Spanner row". On git, the usual way out is a merge queue or bot that serializes landing. The post also says they "haven't been able to effectively replicate the industry standard of a global repository lock on the merge queue" and moved to post-merge testing instead. I didn't test a merge queue here.
 
@@ -157,7 +157,7 @@ On the million-file bare repo, `git repack -a -d -f` took 13.27 s and `git gc` t
 
 - **Scion**, and any of Anthropic's numbers. They are all self-reported.
 - **A real network or forge.** Everything ran over `file://` on one disk. Network latency would make the push race and the per-object lazy fetches worse, but that is an expectation, not a measurement.
-- **A history-heavy repo.** Mine has 500 commits. The clone comparisons would favour `--depth 1` and `blob:none` much more on a repo with long history.
+- **A history-heavy repo.** Mine has 500 commits. The clone comparisons would favor `--depth 1` and `blob:none` much more on a repo with long history.
 - **A cold cache, `index.sparse`, Scalar, `git maintenance` schedules, or a newer git than 2.47.3.**
 - **A merge queue or server-side merge** as the fix for cliff 1.
 - **Why the million-file `blob:none` checkout was slow.** I only measured that it was.
