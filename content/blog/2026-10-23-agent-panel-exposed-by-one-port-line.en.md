@@ -63,26 +63,29 @@ One thing about the test machine. It had a leftover `iptables-legacy` ruleset wi
 
 ## Results
 
-| Case | Setup | `ss` shows | From loopback | From the namespace |
+| How the panel was started | Host listener (`ss`) | Works from the same machine? | Reachable from another machine? | What it means |
 |---|---|---|---|---|
-| b01 | process, `--host 127.0.0.1` | `127.0.0.1:18001` | 200 | refused |
-| b02 | process, `--host 0.0.0.0` | `0.0.0.0:18002` | 200 | **200** |
-| b03 | container, app on `127.0.0.1`, `-p 18003:8000` | `0.0.0.0:18003`, `[::]:18003` | connection reset | refused |
-| b04 | container, app on `0.0.0.0`, `-p 18004:8000` | `0.0.0.0:18004`, `[::]:18004` | 200 | **200** |
-| b05 | container, app on `0.0.0.0`, `-p 127.0.0.1:18005:8000` | `127.0.0.1:18005` | 200 | refused |
-| b06 | b02 and b04 plus `iptables -I INPUT -p tcp --dport <port> -j DROP` | unchanged | | 18002 timed out, **18004 still 200** |
+| Plain process, `--host 127.0.0.1` | `127.0.0.1:18001` | Yes (200) | No (refused) | Safe, and still usable locally |
+| Plain process, `--host 0.0.0.0` | `0.0.0.0:18002` | Yes (200) | **Yes (200)** | **Exposed** |
+| Container, app on `127.0.0.1` inside, port published as `-p 18003:8000` | `0.0.0.0:18003`, `[::]:18003` | No (connection reset) | No (refused) | Locked out for everyone, including you |
+| Container, app on `0.0.0.0` inside, port published as `-p 18004:8000` (the Compose shape) | `0.0.0.0:18004`, `[::]:18004` | Yes (200) | **Yes (200)** | **Exposed** |
+| Container, app on `0.0.0.0` inside, port published as `-p 127.0.0.1:18005:8000` | `127.0.0.1:18005` | Yes (200) | No (refused) | Safe, and still usable locally |
+| Plain process on `0.0.0.0`, plus a host firewall `INPUT` drop rule for its port | unchanged | not tested | No (timed out) | The firewall rule worked |
+| Container published as `-p 18004:8000`, plus the same `INPUT` drop rule | unchanged | not tested | **Yes (200)** | **Still exposed. The firewall rule did nothing** |
 
-"Refused" is `curl` exit 7, "connection reset" is exit 56 and "timed out" is exit 28 after 3 seconds. The raw lines are in `results/matrix.tsv`.
+Takeaway: the host side of the `-p` line decides who can reach a container, and a host `INPUT` firewall rule does not change that.
+
+"Another machine" is the `panelclient` namespace described above. "Refused" is `curl` exit 7, "connection reset" is exit 56 and "timed out" is exit 28 after 3 seconds. The raw lines are in `results/matrix.tsv`, where these rows are cases `b01` to `b06` in the same order (the last two rows are both `b06`).
 
 ## Inside a container, 127.0.0.1 locks out everyone
 
-b03 is the result I would have guessed wrong. The container's port was published, and the host showed a listener on every address, but even `curl` on the host itself failed. The published port goes to the container's own network interface. An app bound to the container's loopback never sees that traffic.
+The container with the app on `127.0.0.1` inside is the result I would have guessed wrong. The container's port was published, and the host showed a listener on every address, but even `curl` on the host itself failed. The published port goes to the container's own network interface. An app bound to the container's loopback never sees that traffic.
 
 That is the reason Compose files run the app on `0.0.0.0`. Inside the container it is the correct bind, and it doesn't decide who can reach the panel. The `ports:` line does.
 
 ## The port line decides
 
-b04 is the Cairn Compose shape with a different port number. From the host it looks like this:
+The `-p 18004:8000` container is the Cairn Compose shape with a different port number. From the host it looks like this:
 
 ```text
 $ ss -H -ltnp "sport = :18004"
@@ -93,7 +96,7 @@ $ docker port p04
 8000/tcp -> [::]:18004
 ```
 
-b05 changes only the host side of `-p`:
+The `-p 127.0.0.1:18005:8000` container changes only the host side of `-p`:
 
 ```text
 $ ss -H -ltnp "sport = :18005"
@@ -112,7 +115,7 @@ For Cairn's file, the change is one line: `- "127.0.0.1:8000:8000"`.
 
 ## A host firewall rule did not help
 
-b06 is the case I would least want to find out about later. I added the same `INPUT` drop rule for the plain process port and the container port. The plain process went silent, and the namespace client timed out. The container answered 200 as if the rule weren't there.
+The firewall rows are the result I would least want to find out about later. I added the same `INPUT` drop rule for the plain process port and the container port. The plain process went silent, and the namespace client timed out. The container answered 200 as if the rule weren't there.
 
 Docker's [packet filtering page](https://docs.docker.com/engine/network/packet-filtering-firewalls/) explains why, in its ufw section:
 
@@ -168,7 +171,7 @@ EXPOSED  docker p04 0.0.0.0:18004->8000/tcp
 EXPOSED  docker p04 :::18004->8000/tcp
 ```
 
-It exited 0 for b01 and b05 and 1 for b02, b03 and b04. b03 counts as exposed even though nothing answered, because the host port was open on every address. Run it with the panel's port after every `docker compose up`, or with no arguments to see everything the machine listens on.
+It exited 0 for the two safe setups (the process on `127.0.0.1` and the container published on `127.0.0.1:18005`). It exited 1, so a deploy step would fail, for the process on `0.0.0.0`, the Compose-shaped container and the container with the app on `127.0.0.1` inside. That last one counts as exposed even though nothing answered, because the host port was open on every address. Run it with the panel's port after every `docker compose up`, or with no arguments to see everything the machine listens on.
 
 The check reads the machine's own sockets. It doesn't tell you whether a cloud security group or a router port forward lets the traffic in. That has to be checked from outside, and only against your own host.
 
@@ -176,14 +179,14 @@ The check reads the machine's own sockets. It doesn't tell you whether a cloud s
 
 - **Cairn itself.** I used a stand-in with the same default bind and no authentication. I checked Cairn's `cli.py`, `docker-compose.yaml` and `server/app.py` at `8e7e0ea`. `app.py` registers five routers and a static mount, and has no authentication code, but I didn't read the routers.
 - **What the exposed operators ran.** NorForge's article doesn't say, and I can't tell from port numbers.
-- **Docker 28 or newer.** Docker's docs warn that "in releases older than 28.0.0, hosts within the same L2 segment ... can reach ports published to localhost" ([moby/moby#45610](https://github.com/moby/moby/issues/45610)). My Docker was 26.1.5, and I didn't test that path. b05 shows that the namespace couldn't reach the loopback publish through the host address. It doesn't show that a neighbour on the same switch can't.
+- **Docker 28 or newer.** Docker's docs warn that "in releases older than 28.0.0, hosts within the same L2 segment ... can reach ports published to localhost" ([moby/moby#45610](https://github.com/moby/moby/issues/45610)). My Docker was 26.1.5, and I didn't test that path. My loopback-published container shows that the client namespace couldn't reach it through the host address. It doesn't show that a neighbor on the same switch can't.
 - **ufw, firewalld, nftables-backend Docker, rootless Docker, Podman, an IPv6 client, a cloud security group.**
 - **An SSH tunnel to a loopback-published panel** (`ssh -L 8000:127.0.0.1:8000 <host>`). It is the usual way to reach a panel published on `127.0.0.1` from a laptop, but I didn't run it here.
 
 ## What to do
 
-- **Publish agent panels on loopback.** Use `"127.0.0.1:8000:8000"` in Compose. Keep `--host 0.0.0.0` inside the container, which is needed (b03).
-- **Don't rely on a host `INPUT` rule to cover a published port** (b06). If you need host-level filtering for containers, Docker's [iptables page](https://docs.docker.com/engine/network/firewall-iptables/) describes `DOCKER-USER` as "a placeholder for user-defined rules that will be processed before rules in the DOCKER-FORWARD and DOCKER chains." I didn't test a rule there.
+- **Publish agent panels on loopback.** Use `"127.0.0.1:8000:8000"` in Compose. Keep `--host 0.0.0.0` inside the container, which is needed: with `127.0.0.1` inside, even the host was locked out.
+- **Don't rely on a host `INPUT` rule to cover a published port.** In my run the container still answered 200 with the rule in place. If you need host-level filtering for containers, Docker's [iptables page](https://docs.docker.com/engine/network/firewall-iptables/) describes `DOCKER-USER` as "a placeholder for user-defined rules that will be processed before rules in the DOCKER-FORWARD and DOCKER chains." I didn't test a rule there.
 - **Consider a loopback default for the daemon.** The port publishing page documents `"ip": "127.0.0.1"` in `daemon.json` for the default bridge and `com.docker.network.bridge.host_binding_ipv4` for user-defined networks. I didn't test either. Note that `docker compose` normally puts services on a user-defined network, so the `"ip"` setting alone may not cover it.
 - **Run the read-only check after every deploy** and fail the deploy on exit 1.
 - **Upgrade Docker to 28.0.0 or later** if you rely on loopback publishing and share an L2 network with machines you don't trust.
