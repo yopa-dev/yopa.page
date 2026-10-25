@@ -51,7 +51,7 @@ I wrote a [small model](https://github.com/ypark9/yopa-experiments/tree/experime
 - **Crashes:** the consumer crashes after a random record, stays down for 60 seconds, and comes back. I repeated that 200 times.
 - **Strategies:** six ways to choose where to resume. For each one, I counted records never processed ("lost") and records processed twice ("dup").
 
-| Resume from | Restarts with loss | Mean lost | Max lost | Restarts with dups | Mean dup | Max dup |
+| Resume from | Restarts that lost records (of 200) | Records lost per restart (mean) | Records lost in the worst restart | Restarts that processed records twice (of 200) | Records processed twice per restart (mean) | Records processed twice in the worst restart |
 |---|---|---|---|---|---|---|
 | `LATEST` | 200 / 200 | 1,194 | 1,308 | 0 | 0 | 0 |
 | `TRIM_HORIZON` | 0 | 0 | 0 | 200 / 200 | 34,119 | 67,888 |
@@ -59,6 +59,8 @@ I wrote a [small model](https://github.com/ypark9/yopa-experiments/tree/experime
 | `AT_TIMESTAMP`, last record's time + 1 ms | 187 / 200 | 9.9 | 28 | 0 | 0 | 0 |
 | `AT_TIMESTAMP`, your clock when you checkpointed | 191 / 200 | 10.5 | 28 | 0 | 0 | 0 |
 | `AFTER_SEQUENCE_NUMBER` | 0 | 0 | 0 | 0 | 0 | 0 |
+
+Takeaway: only the stored sequence number resumed with nothing lost and nothing repeated. Among the timestamp options, only the record's own time, used exactly as returned, lost nothing, and it paid for that with at most 28 records processed twice per restart.
 
 How to read it:
 
