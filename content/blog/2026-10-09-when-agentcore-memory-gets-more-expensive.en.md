@@ -34,7 +34,7 @@ So this version asks the question that matters for a design: **next to what the 
 - **Full-history reads often hit the context limit first.** In the 30-day-TTL full-history cases, most crossovers needed a history over the modeled **1M-token** context window. But 1 KB events crossed after about 200 turns while the history still fit. Context overflow is not the only way the new price can exceed the old one.
 - **Next to tokens, memory is small.** For 50-turn sessions sent to Claude Sonnet 5.5 at the full input price, memory was **0.01% to 0.62%** of memory plus history tokens in every setup I modeled.
 - **It is not small for tiny events on cheap tokens.** With 1 KB messages, Claude Haiku 5.5, and cache reads, memory reached **42%** of that total. The 12 KB minimum bills a 1 KB message as 12 KB, and the tokens do not. Even there, the new price was below the old one.
-- **Long storage can cost more without reads.** In the model, a 256 KB event kept for 365 days cost **1.49 times** the old fee with no readback. That is a size-and-TTL bound, not a measured workload; I did not verify the service's maximum event size.
+- **Long storage can cost more without reads.** In the model, 10 million 256 KB events a month, kept for 365 days and never read, cost **$3,712 instead of $2,500, about 48% more** than the old flat fee. That is a size-and-TTL bound, not a measured workload; I did not verify the service's maximum event size.
 
 This is a cost model, not a bill. I made no AWS or model calls. The code and raw output are in [yopa-experiments](https://github.com/ypark9/yopa-experiments/tree/experiment/when-agentcore-memory-gets-more-expensive-20261009/2026-10-09-when-agentcore-memory-gets-more-expensive) (commit [`fb7ffcd`](https://github.com/ypark9/yopa-experiments/commit/fb7ffcd73ef4faf5d629f28075222f359c0ab6f6)).
 
@@ -85,15 +85,23 @@ Where memory does show up is the other end. With 1 KB messages on Haiku 5.5, mem
 
 ## Storage is the one that does not need reads
 
-Write-only, no readback. New cost divided by old:
+Here the agent only writes events and never reads them back. I used the same workload as the table above: 100,000 sessions × 50 turns × 2 events = **10 million events a month**. At the old $0.25 per 1,000 events, that month cost **$2,500**, however long the events were kept.
 
-| Event size | 30-day TTL | 365-day TTL |
+Under the new price, each month's events pay two things: a one-time write charge (size clamped to 12–64 KB, at $1.00 per GB) and storage for every hour they are kept (actual size, at $0.10 per GB-month, with a 730-hour month). Worked through for the biggest case, 256 KB kept 365 days:
+
+- Write: 256 KB is billed as 64 KB. 10,000,000 × 64 KB = 640 GB, × $1.00 = **$640**.
+- Storage: 10,000,000 × 256 KB = 2,560 GB. 365 days is 8,760 hours, or 12 billing months. 2,560 GB × $0.10 × 12 = **$3,072**.
+- Total: $640 + $3,072 = **$3,712**, against $2,500 before.
+
+| One month's 10 million events | Kept 30 days | Kept 365 days |
 |---|---|---|
-| 12 KB | 0.05 | 0.11 |
-| 64 KB | 0.28 | 0.56 |
-| 256 KB | 0.36 | **1.49** |
+| 12 KB each | $132 ($120 write + $12 storage): **95% cheaper** | $264 ($120 + $144): **89% cheaper** |
+| 64 KB each | $703 ($640 + $63): **72% cheaper** | $1,408 ($640 + $768): **44% cheaper** |
+| 256 KB each | $892 ($640 + $252): **64% cheaper** | **$3,712 ($640 + $3,072): about 48% more expensive** |
 
-Storage bills actual size, not the 64 KB cap. A 256 KB event kept for a year costs about 1.5 times the old flat fee, read or not, and the TTL cannot be changed after the event is written. I did not check the maximum event size, so treat the 256 KB row as a bound, not a common case. The SDK sends messages of 100,000 characters or more as blob events, so large payloads are not hypothetical. In [AgentCore Memory events, strategies, and isolation](/blog/2026-08-01-agentcore-memory-events-strategies-and-isolation.html) I said to define an event expiry for privacy reasons. That choice now has a price too.
+Takeaway: without reads, the new price only loses to the old $2,500 when events are both large and kept for a long time. In this grid, that is the single 256 KB, 365-day cell.[^ratio]
+
+Storage bills actual size, not the 64 KB cap. A 256 KB event kept for a year costs about 1.5 times the old flat fee ($0.000371 against $0.00025 per event), read or not, and the TTL cannot be changed after the event is written. I did not check the maximum event size, so treat the 256 KB row as a bound, not a common case. The SDK sends messages of 100,000 characters or more as blob events, so large payloads are not hypothetical. In [AgentCore Memory events, strategies, and isolation](/blog/2026-08-01-agentcore-memory-events-strategies-and-isolation.html) I said to define an event expiry for privacy reasons. That choice now has a price too.
 
 ## Limits
 
@@ -120,3 +128,5 @@ For the rest of an always-on agent's bill, where the infrastructure around the m
 - [strands-agents/sdk-python](https://github.com/strands-agents/sdk-python/blob/afc3e059b1ff932fb8f86be2d444846aa3e2a06e/strands-py/src/strands/session/repository_session_manager.py)
 - AWS Health notice for AgentCore short-term memory pricing changes, received October 2, 2026
 - [Experiment code and raw output (yopa-experiments)](https://github.com/ypark9/yopa-experiments/tree/experiment/when-agentcore-memory-gets-more-expensive-20261009/2026-10-09-when-agentcore-memory-gets-more-expensive)
+
+[^ratio]: As new cost divided by old, the six cells are 0.05 and 0.11 (12 KB), 0.28 and 0.56 (64 KB), and 0.36 and 1.49 (256 KB), for 30 and 365 days. Those are the ratios the experiment's `model.py` prints. Dollar amounts are rounded to the nearest dollar.
