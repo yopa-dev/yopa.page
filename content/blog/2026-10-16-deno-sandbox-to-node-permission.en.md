@@ -73,7 +73,7 @@ yt-dlp's own [README](https://github.com/yt-dlp/yt-dlp) is honest about this. On
 ## The setup
 
 - **Runtimes:** Deno 2.9.7, Node 22.23.3, Node 24.22.0, Node 26.12.0. Official Linux x64 builds, with checksums checked.
-- **Profiles:** `P0` grants nothing, the way yt-dlp runs both runtimes. `P1` grants read and write on one work folder, the way a tool that needs scratch space would run.
+- **Profiles:** one grants nothing, the way yt-dlp runs both runtimes. The other grants read and write on one work folder, the way a tool that needs scratch space would run.
 - **Input:** the script goes in on standard input, as yt-dlp does it. The child's environment holds a fake secret (`PROBE_FAKE_SECRET`). The child also gets a file handle that is already open on a file outside the work folder.
 - **Controls:** every probe also ran with full access (`deno run -A`, plain `node`). A probe that cannot succeed even then is marked `n/a`, not "blocked". Otherwise a broken probe would look like a working wall.
 - **Network:** a small HTTP server on 127.0.0.1. Nothing left the machine. No cloud account, no paid API.
@@ -93,7 +93,7 @@ If the runtime lets the code see the variable, the probe returns its value and c
 
 For two of the side doors, I did not trust the probe's own report. For SQLite, the harness counted rows in the database afterwards. For the debugger probes, it checked whether the other process printed `Debugger listening`. The [code and raw output](https://github.com/ypark9/yopa-experiments/tree/experiment/deno-sandbox-to-node-permission-20261016/2026-10-16-deno-sandbox-to-node-permission) are public.
 
-## Results with no grants (P0)
+## Results with no grants
 
 | Probe | Deno 2.9.7 | Node 22 | Node 24 | Node 26 |
 | --- | --- | --- | --- | --- |
@@ -111,9 +111,11 @@ For two of the side doors, I did not trust the probe's own report. For SQLite, t
 | `process._debugProcess(pid)` on another Node process | blocked | **allowed** | **allowed** | **allowed** |
 | `process.kill(pid, 'SIGUSR1')` on another Node process | blocked | **allowed** | **allowed** | **allowed** |
 
+Takeaway: with nothing granted, Deno blocked all 12 probes it could run. Node 22 and Node 24 still let 8 of 13 through, and Node 26 let 6 of 13 through.
+
 The one `n/a` is the inherited file handle under Deno. Deno's Node-compatible `fs` could not read it even with full access, so I cannot say Deno blocks it. That is why the Deno count is 12 of 12, not 13 of 13.
 
-With a work-folder grant (P1), the only cells that changed were the two you would expect. Writing inside the folder and reading the symlink became "allowed" in all four runtimes. Every other cell stayed the same.
+With a work-folder grant, the only cells that changed were the two you would expect. Writing inside the folder and reading the symlink became "allowed" in all four runtimes. Every other cell stayed the same.
 
 ### Environment variables
 
