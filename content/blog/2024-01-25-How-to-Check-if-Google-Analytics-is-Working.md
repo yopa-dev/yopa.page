@@ -38,14 +38,14 @@ Google Tag Assistant allows you to identify and fix issues such as duplicate tra
 
 ## What a duplicate looks like with GA4
 
-The common duplicate today is one GA4 measurement ID (`G-…`) configured twice on a page. A typical cause is a hard-coded `gtag.js` snippet in the site template plus a Google tag in Google Tag Manager. Google notes that if you use Tag Manager, [you don't need to add gtag.js snippets to your site](https://developers.google.com/analytics/devguides/collection/ga4/tag-options), and warns that [the same Google tag configured two or more times on a page may cause duplicate data or mixed settings](https://support.google.com/analytics/answer/12015327).
+The common duplicate today is one GA4 measurement ID (`G-…`) configured twice on a page. A typical cause is a hard-coded `gtag.js` snippet in the site template plus a Google tag in Google Tag Manager. Google notes that if you use Tag Manager, [you don't need to add gtag.js snippets to your site](https://developers.google.com/analytics/devguides/collection/ga4/tag-options), and warns that [the same Google tag configured two or more times on a page may cause duplicate data or mixed settings](https://support.google.com/analytics/answer/12329709?hl=en).
 
 Check it without changing anything first:
 
 1. In Tag Assistant, open one page. Check whether the same `G-` ID is listed more than once, and whether a single page load sends two `page_view` events.
 2. Search your site template and your Tag Manager container for the same measurement ID.
 
-If you find two, remove one implementation. Usually you keep Tag Manager and delete the hard-coded snippet. Then repeat the Tag Assistant check and confirm one `page_view` per page load. If you cannot remove one right away, Google's [Google tag help](https://support.google.com/analytics/answer/12015327) describes an option in the **Manage Google tag** section of the **Admin** tab: **Ignore duplicate instances of on-page configuration**. It ignores repeated on-page config commands, and Google enables it automatically when you combine two Google tags. Treat it as a stopgap; removing the duplicate is still the fix.
+If you find two, remove one implementation. Usually you keep Tag Manager and delete the hard-coded snippet. Then repeat the Tag Assistant check and confirm one `page_view` per page load. If you cannot remove one right away, Google's [Google tag management help](https://support.google.com/analytics/answer/12329709?hl=en) describes an option in the **Manage Google tag** section of the **Admin** tab: **Ignore duplicate instances of on-page configuration**. It ignores repeated on-page config commands, and Google enables it automatically when you combine two Google tags. Treat it as a stopgap; removing the duplicate is still the fix.
 
 By following these steps, you're not just checking if Google Analytics is working; you're ensuring that it's working correctly. The Tag Assistant tool is a definitive way to verify your setup, giving you confidence in the data you're using to make important business decisions.
 
