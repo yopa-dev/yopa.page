@@ -1,8 +1,8 @@
 ---
 title: "How to Use Cross-Session Messaging in Claude Code"
 date: 2026-08-10T09:00:00-04:00
-lastmod: 2026-08-28
-reviewed_at: 2026-08-28
+lastmod: 2026-10-21
+reviewed_at: 2026-10-21
 author: Yoonsoo Park
 description: "A practical guide to using ListAgents and cross-session SendMessage to pass contracts, findings, and review requests between independently running Claude Code sessions."
 categories:
@@ -13,6 +13,8 @@ tags:
   - claude-code
   - cross-session-messaging
 ---
+
+> **Review note (2026-10-21):** Provider availability changed after publication. Messaging between sessions on the same machine now works on every provider, including Amazon Bedrock, Claude Platform on AWS, Google Cloud's Agent Platform, and Microsoft Foundry, from v2.1.248. Only sessions on other machines or in the cloud still need a claude.ai sign-in through Remote Control. The article also covers the idle notice added in v2.1.236. Source: [cross-session messaging documentation](https://code.claude.com/docs/en/cross-session-messaging#availability).
 
 Claude Code 2.1.224 added messaging between independently running sessions. One session can discover another with `ListAgents` (also exposed through `/list-agents` and `/peers`) and deliver information with `SendMessage`. Unlike teammate messaging inside Agent Teams, this feature connects sessions that are already running separately.
 
@@ -26,7 +28,14 @@ Cross-session `SendMessage` arrived in Claude Code 2.1.224 for macOS, Linux, and
 claude --version
 ```
 
-Version 2.1.225 extended it so a session can initiate a conversation by name with Remote Control sessions on another machine. `ListAgents` displays those targets as `name [ref]`. Use 2.1.225 or later when cross-machine messaging matters. The feature is not available when Claude Code is running through Amazon Bedrock, Claude Platform on AWS, Google Cloud Agent Platform, or Microsoft Foundry.
+Version 2.1.225 extended it so a session can initiate a conversation by name with Remote Control sessions on another machine. `ListAgents` displays those targets as `name [ref]`. Use 2.1.225 or later when cross-machine messaging matters.
+
+Provider availability splits by where the target runs:
+
+- **Sessions on this machine** work on every provider, including Amazon Bedrock, Claude Platform on AWS, Google Cloud's Agent Platform, and Microsoft Foundry. On those providers, and with feature-flag fetching off, they require v2.1.248 or later. These messages travel over a per-session local socket (a named pipe on native Windows), never through Anthropic servers.
+- **Sessions on other machines or in the cloud** are found only from a session connected to Remote Control. That needs a claude.ai sign-in as the session's active authentication. With an API key or a third-party provider, Claude cannot find those sessions.
+
+If `/list-agents` is not recognized, the session does not have the feature yet. Start with `claude --version`.
 
 There is no special message syntax to memorize. Ask Claude in natural language and it uses `ListAgents` and `SendMessage`; use `/list-agents` or `/peers` when you want to inspect reachable sessions yourself. (The `@` mention shorthand requires a newer 2.1.232 build.)
 
@@ -128,6 +137,16 @@ as a table. Do not modify or deploy anything.
 
 Avoid broadcasting to every session. Verify names and projects, keep the response schema small, and check completion against commits and tests.
 
+### Wait for a long task without polling
+
+From v2.1.236 (in both sessions), Claude can ask another session on the same machine for one notice when that session next goes idle or exits. Idle means it finished a turn with nothing queued. Claude subscribes through the `SendMessage` tool's `notify_when_idle` input. On its own, the subscription does not start a turn or spend tokens in the watched session.
+
+```text
+Tell me when the migration session finishes what it's working on.
+```
+
+The notice is a status line, not a result. Check the commit, test output, or migration log before acting on it. A subscription with no notice within 12 hours is dropped, and `refuse` on either side means nothing arrives. Only your main conversation can subscribe, and only to sessions on the same machine.
+
 ## This is not Agent Teams
 
 Cross-session messaging targets sessions that were started independently. Agent Teams is a separate orchestration model in which a lead creates teammates and manages shared tasks.
@@ -167,7 +186,8 @@ The message should point to the durable artifact and state the action needed now
 ## A practical checklist
 
 - Is Claude Code 2.1.224 or later on macOS, Linux, or WSL2 (or 2.1.234+ on native Windows)?
-- For initiating cross-machine messages, is it 2.1.225 or later?
+- For initiating cross-machine messages, is it 2.1.225 or later, with a claude.ai Remote Control sign-in?
+- On Bedrock, Claude Platform on AWS, Google Cloud, or Foundry, is it 2.1.248 or later for same-machine messaging?
 - Do `/rename` names distinguish session ownership?
 - Did `ListAgents` confirm the exact target?
 - Does the message contain change, evidence, request, and reply conditions?
