@@ -72,11 +72,11 @@ This is an upper bound on the effect, not a prediction. If the "active CPU" in y
 
 ## Assumption 2: the request fee doesn't matter
 
-Web's request fee is $0.30 per million, against $0.20 for Event. That extra $0.10 per million is paid before any compute. An Event request costs less in total than that gap alone when its duration is below the numbers in this table. For 1 GB on Arm the arithmetic is $0.10 ÷ 1,000,000 = $0.0000001 per request, and $0.0000001 ÷ $0.0000133334 per GB-second ≈ 0.0075 seconds, or 7.5 ms.
+Web's request fee is $0.30 per million, against $0.20 for Event. That extra $0.10 per million is paid before any compute. An Event request costs less in total than that gap alone when its duration is below the numbers in this table. For 1 GB on Arm the arithmetic is $0.10 ÷ 1,000,000 = $0.0000001 per request, and $0.0000001 ÷ $0.0000133334 per GB-second ≈ 0.0075 seconds, or 7.5 ms. Smaller functions get proportionally more room. Memory sizes convert to GB by dividing by 1,024, as AWS bills them, so 128 MB is 128 ÷ 1,024 = 0.125 GB, an eighth of 1 GB, and its row is 7.5 ms × 8 = 60.0 ms.
 
 | Event function memory | Event duration below which Web can't be cheaper, Arm | Same, x86 |
 |---|---|---|
-| 128 MB | 58.6 ms | 46.9 ms |
+| 128 MB | 60.0 ms | 48.0 ms |
 | 512 MB | 15.0 ms | 12.0 ms |
 | 1 GB | 7.5 ms | 6.0 ms |
 
