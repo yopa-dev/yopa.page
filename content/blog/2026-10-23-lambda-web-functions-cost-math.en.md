@@ -72,15 +72,15 @@ This is an upper bound on the effect, not a prediction. If the "active CPU" in y
 
 ## Assumption 2: the request fee doesn't matter
 
-Web's request fee is $0.30 per million, against $0.20 for Event. That extra $0.10 per million is paid before any compute. An Event request costs less in total than that gap alone when its duration is below:
+Web's request fee is $0.30 per million, against $0.20 for Event. That extra $0.10 per million is paid before any compute. An Event request costs less in total than that gap alone when its duration is below the numbers in this table. For 1 GB on Arm the arithmetic is $0.10 ÷ 1,000,000 = $0.0000001 per request, and $0.0000001 ÷ $0.0000133334 per GB-second ≈ 0.0075 seconds, or 7.5 ms.
 
-| Event memory | Arm | x86 |
+| Event function memory | Event duration below which Web can't be cheaper, Arm | Same, x86 |
 |---|---|---|
 | 128 MB | 58.6 ms | 46.9 ms |
 | 512 MB | 15.0 ms | 12.0 ms |
 | 1 GB | 7.5 ms | 6.0 ms |
 
-Below those durations, Web can't win no matter how little CPU it uses. The authorizer shows the effect: 100 million requests at 50 ms, and the request fee alone is $30.00 of the $64.56 Web bill. Authorizers, webhooks and small fan-out workers are high volume and short, and they belong on Event.
+Takeaway: if your Event function finishes faster than its row, Web can't win on cost, no matter how little CPU it uses. The authorizer shows the effect: 100 million requests at 50 ms, and the request fee alone is $30.00 of the $64.56 Web bill. Authorizers, webhooks and small fan-out workers are high volume and short, and they belong on Event.
 
 ## Assumption 3: exactly one environment, all the time
 
