@@ -1,7 +1,9 @@
 # Article Atlas Growth MVP
 
-Status: release candidate; beehiiv acceptance passed, remaining manual release checks pending
+Status: deployed; four-week measurement window active
 Last updated: 2026-08-09
+Release date: 2026-08-09
+First four-week evaluation: 2026-09-06
 
 Fresh-session context: `SESSION_HANDOFF.md`
 
@@ -98,7 +100,8 @@ personal visitor tracking, or gated world features.
   comparison remains pending and is not a deployment blocker.
 - [x] Development builds omit GA entirely and all baseline reports filter to
   `www.yopa.page` or `yopa.page`, preventing localhost preview pollution.
-- [ ] **Joint:** record the release date and repeat the report after four weeks.
+- [~] **Joint:** release date recorded as 2026-08-09. Repeat the same report on
+  2026-09-06 after the first 28-day measurement window.
 
 GA4 owner handoff completed on 2026-08-09. Never paste the JSON contents into a
 task, issue, log, or knowledge note.
@@ -157,9 +160,13 @@ subscribe URLs. Do not send subscriber exports or account credentials.
 - [x] Development HTML omits GA while production HTML includes it. Evidence:
   isolated destination builds and exact Google-tag scan on 2026-08-09.
 - [x] `git diff --check` passes. Evidence: 2026-08-09 release-candidate run.
-- [ ] Create a scoped branch, commit, and Draft PR after owner approval.
-- [ ] Deploy the MVP after checks and manual acceptance pass.
-- [ ] Collect four weeks of baseline data.
+- [x] Scoped Article Atlas Growth changes were reviewed and merged through PRs
+  #69–#71. Final release merge: `28bfd4d` on 2026-08-09.
+- [x] MVP deployment passed GitHub Actions and production smoke on 2026-08-09.
+  Evidence: yopa.page CI run `31337894255`; EN/KO CTA, confirmation pages,
+  5/5 completion focus, header/footer, 320px overflow, and no Expedition ads or
+  Ko-fi verified on production.
+- [~] Collect four weeks of baseline data through 2026-09-06.
 - [ ] Gate: Expedition CTA exposure-to-start rate is at least 3%.
 - [ ] Gate: Expedition start-to-completion rate is at least 25%.
 - [ ] Gate: confirmed subscription among completers is at least 5%.
