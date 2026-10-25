@@ -1,8 +1,8 @@
 ---
-title: "AgentCore Memory's New Pricing Only Costs More When You Read What the Model Can't Use"
+title: "When AgentCore Memory's New Pricing Costs More: Re-reads, Tiny Events, and Long TTLs"
 date: 2026-10-09T09:00:00-04:00
 author: Yoonsoo Park
-description: "AgentCore short-term memory moved from per-event to per-GB pricing on October 6. Each event now gets about 99 re-reads (14 for large events) before it costs more than before. I put the memory bill next to the LLM tokens for the same history. The new price only passed the old one when the history no longer fit a 1M-token context, or after about 200 turns of tiny events, and next to Claude Sonnet 5.5 memory was under 1% of the cost."
+description: "AgentCore short-term memory moved from per-event to per-GB pricing on October 6. My cost model compares repeated reads with the LLM tokens for the same history. Most 30-day full-history crossovers exceed the modeled 1M-token context, but tiny events can cross while still fitting, and large events kept for a year can cost more without any reads."
 categories:
   - AI Agents
   - AWS
@@ -24,16 +24,17 @@ On October 2, my AWS account received a Health notice. Amazon Bedrock AgentCore 
 
 AWS says more than 95% of customers will pay less, and names the exceptions: large payloads, extended TTL, and frequent retrieval. Credits cover any increase through December 31, 2026.
 
-"Frequent retrieval" was the part I could not size from the notice. My first draft of this post answered it with turn counts: reload the full history every turn and you pass the old price at turn 30 with 64 KB events. That was true in my model and mostly useless. At turn 30 that history would be about 1.5 million tokens, and no model would take it.
+"Frequent retrieval" was the part I could not size from the notice. My first draft of this post answered it with turn counts: reload the full history every turn and you pass the old price at turn 30 with 64 KB events. That was true in my model and mostly useless. At turn 30 that history would be about 1.5 million tokens, above the 1M-token context window used in this comparison.
 
 So this version asks the question that matters for a design: **next to what the agent already spends on tokens, when does the new memory price change anything?**
 
 ## Short answer
 
 - **Each event has a re-read budget.** A 12 KB-or-smaller event can be read back about **99 times**, and a 64 KB event about **14 times**, before it costs more than the old $0.00025 flat fee.
-- **You run out of context before you run out of budget.** In my sweep, every case where the new price passed the old one, except 1 KB events after about 200 turns, needed a history over **1M tokens** on that turn. The agent would be paying to read events the model cannot take.
+- **Full-history reads often hit the context limit first.** In the 30-day-TTL full-history cases, most crossovers needed a history over the modeled **1M-token** context window. But 1 KB events crossed after about 200 turns while the history still fit. Context overflow is not the only way the new price can exceed the old one.
 - **Next to tokens, memory is small.** For 50-turn sessions sent to Claude Sonnet 5.5 at the full input price, memory was **0.01% to 0.62%** of memory plus history tokens in every setup I modeled.
 - **It is not small for tiny events on cheap tokens.** With 1 KB messages, Claude Haiku 5.5, and cache reads, memory reached **42%** of that total. The 12 KB minimum bills a 1 KB message as 12 KB, and the tokens do not. Even there, the new price was below the old one.
+- **Long storage can cost more without reads.** In the model, a 256 KB event kept for 365 days cost **1.49 times** the old fee with no readback. That is a size-and-TTL bound, not a measured workload; I did not verify the service's maximum event size.
 
 This is a cost model, not a bill. I made no AWS or model calls. The code and raw output are in [yopa-experiments](https://github.com/ypark9/yopa-experiments/tree/experiment/when-agentcore-memory-gets-more-expensive-20261009/2026-10-09-when-agentcore-memory-gets-more-expensive) (commit [`fb7ffcd`](https://github.com/ypark9/yopa-experiments/commit/fb7ffcd73ef4faf5d629f28075222f359c0ab6f6)).
 
@@ -78,7 +79,7 @@ Fresh agent per request, full history every turn:
 | 12 KB | $720/mo | $2,500/mo | $2.35M/mo | $117,600/mo | 470K tokens |
 | 64 KB | $3,839/mo | $2,500/mo | (over context) | (over context) | 2.5M tokens |
 
-The only row where memory costs more than before is the one no model can run. At 12 KB, the memory line went from $2,500 to $720 a month while the tokens for the same history were $2.35 million with Sonnet 5.5. If that session is a cost problem, the memory pricing is not the reason.
+In this 50-turn table, the only row where memory costs more than before exceeds the 1M-token context window used in the comparison. At 12 KB, the memory line went from $2,500 to $720 a month while the tokens for the same history were $2.35 million with Sonnet 5.5. For that modeled session, the history-token bill is the larger cost to address.
 
 Where memory does show up is the other end. With 1 KB messages on Haiku 5.5, memory was 6.75% of the total at the full input price, and 42% if every history token were a cache read ($0.01 per million). A last-10 window does the same thing: it cuts the tokens more than it cuts the memory reads, so memory's share goes up while the total goes down. In all of those cases the new memory price was still under a third of the old one.
 
