@@ -40,8 +40,8 @@ Code and logs: [yopa-experiments `experiment/muse-share-hostname-dns-20261023`](
 
 Illustrative title and id (not a real Muse share):
 
-- **Scheme A (title in hostname):** `http://q3-budget-review-4d7a19e2.share.test:8766/`
-- **Scheme B (title in path):** `http://share.test:8766/s/q3-budget-review/4d7a19e2`
+- **Title in the hostname:** `http://q3-budget-review-4d7a19e2.share.test:8766/`
+- **Title in the path:** `http://share.test:8766/s/q3-budget-review/4d7a19e2`
 
 A tiny UDP DNS server on `127.0.0.1:5355` answers `A 127.0.0.1` for those names and appends every query to a log. A tiny HTTP server on `:8766` returns the host and path. The demo sends a DNS query for the host of each URL, then fetches the page with `curl --resolve` so traffic stays on loopback.
 
@@ -54,12 +54,14 @@ DNS log from the run:
 1792762615.731	share.test	qtype=1
 ```
 
-| Scheme | URL shape | DNS queries containing the title | HTTP body |
+| Where the title and id go | Does the title show up in DNS logs? | What the DNS log recorded | HTTP body |
 |---|---|---|---|
-| A | title+id in hostname | **yes** — full hostname logged | `ok host=q3-budget-review-4d7a19e2.share.test path=/` |
-| B | title+id in path | **no** — only `share.test` | `ok host=share.test path=/s/q3-budget-review/4d7a19e2` |
+| In the hostname | **Yes.** Anyone who can search DNS history can read it | the full hostname, `q3-budget-review-4d7a19e2.share.test` | `ok host=q3-budget-review-4d7a19e2.share.test path=/` |
+| In the path | **No** | only `share.test` | `ok host=share.test path=/s/q3-budget-review/4d7a19e2` |
 
-The random id in scheme A does not help once the name is queried. DNS logs the whole label. The secret only works while it stays out of protocols that record names.
+Takeaway: one open of a hostname-style link is enough to put the title in DNS logs; a path-style link keeps it out.
+
+The random id in the hostname version does not help once the name is queried. DNS logs the whole label. The secret only works while it stays out of protocols that record names.
 
 ## What Meta said, and what Claroc said
 
