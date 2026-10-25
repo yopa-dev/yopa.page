@@ -20,7 +20,9 @@ tags:
   - Security
 ---
 
-Amazon Bedrock AgentCore Runtime can run asynchronous work for up to eight hours. That is useful, but it is not the same as durable execution. A fraud investigation that waits two days for a document, or an onboarding flow paused for manager approval, cannot depend on one runtime session staying alive.
+> **Review note (2026-10-21):** Since August 6, 2026, AgentCore also offers [runtime instances](https://aws.amazon.com/about-aws/whats-new/2026/08/aws-bedrock-agentcore-runtime-instances-generally-available/), which support agent sessions of up to 14 days on EC2 capacity you choose. The default serverless microVM runtime is still designed for sessions of up to 8 hours. The argument below is unchanged: a longer session is still not durable workflow state.
+
+Amazon Bedrock AgentCore Runtime can run asynchronous work for up to eight hours on its default serverless microVM runtime. [Runtime instances](https://aws.amazon.com/about-aws/whats-new/2026/08/aws-bedrock-agentcore-runtime-instances-generally-available/) extend sessions to up to 14 days (see [AgentCore Runtime Instances: When Your Agent Outgrows the MicroVM](/blog/2026-08-06-agentcore-runtime-instances.html)). Either way, a long session is not the same as durable execution. A fraud investigation that waits two days for a document, or an onboarding flow paused for manager approval, cannot depend on one runtime session staying alive.
 
 The useful boundary is simple: AgentCore Runtime performs bounded agent work; a durable orchestrator owns the business process.
 

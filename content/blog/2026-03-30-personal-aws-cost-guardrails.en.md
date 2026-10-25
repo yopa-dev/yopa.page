@@ -1,6 +1,8 @@
 ---
 title: "Personal AWS Cost Guardrails: Budget Alerts, Auto-Stop, and Anomaly Detection on a Hobby Account"
 date: 2026-03-30T12:35:00-04:00
+lastmod: 2026-10-21
+reviewed_at: 2026-10-21
 author: Yoonsoo Park
 description: "I run a few side projects on a personal AWS account — an EC2 instance, some Bedrock calls, occasional experiments. Here's the three-layer cost guardrail I use to keep one bad afternoon from turning into a four-figure bill, with the actual CloudFormation and the gotchas I hit setting it up."
 categories:
@@ -15,6 +17,8 @@ tags:
 ---
 
 There's a recurring genre of AWS war story — "I left a script running, woke up to a $4,000 bill, AWS support waived it." It's a real risk on a hobby account: you don't have an org-level SCP, you don't have a FinOps team, and one misconfigured loop on Bedrock or a forgotten EC2 instance can quietly run for a week.
+
+> **Review note (2026-10-21):** The article said Cost Anomaly Detection evaluates "roughly daily". AWS documents that it runs approximately three times a day. Because it reads Cost Explorer data, which can lag by up to 24 hours, detection can still take up to 24 hours after the usage, so the latency table is unchanged. Source: [AWS Cost Anomaly Detection user guide](https://docs.aws.amazon.com/cost-management/latest/userguide/manage-ad.html).
 
 So I sat down and built the smallest set of guardrails that would actually stop me, not just notify me. Three layers. All deployable from one CloudFormation stack except the last one, which has a constraint AWS doesn't document well.
 
@@ -113,7 +117,7 @@ The IAM role is small — just `ec2:DescribeInstances` and `ec2:StopInstances`, 
 
 ## Layer 3 — Cost Anomaly Detection (the spike detector)
 
-This is the one that catches "you launched something weird two hours ago." Cost Anomaly Detection (CAD) evaluates roughly daily on actual usage, looks for statistical anomalies vs. your historical baseline per service, and emails you when one service's daily spend deviates significantly.
+This is the one that catches "you launched something weird two hours ago." Cost Anomaly Detection (CAD) runs approximately three times a day on processed billing data. Because that data comes from Cost Explorer, which can lag by up to 24 hours, a detection can still arrive up to a day after the usage. It looks for statistical anomalies vs. your historical baseline per service, and emails you when one service's daily spend deviates significantly.
 
 The trick: you can't fully manage CAD from CloudFormation if you already have a manually-created monitor. AWS allows exactly **one DIMENSIONAL/SERVICE anomaly monitor per account**. If you click around in the console and create one, then later try to create one in CloudFormation:
 

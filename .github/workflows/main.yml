@@ -80,8 +80,7 @@ jobs:
       group: tofu-plan-${{ matrix.environment }}-${{ github.event.pull_request.number || github.run_id }}
       cancel-in-progress: true
     env:
-      HAS_PLAN_ROLE: ${{ secrets.AWS_PLAN_ROLE_ARN != '' }}
-      HAS_PLAN_KEYS: ${{ secrets.AWS_ACCESS_KEY_ID != '' && secrets.AWS_SECRET_ACCESS_KEY != '' }}
+      HAS_PLAN_ROLE: ${{ vars.AWS_PLAN_ROLE_ARN != '' }}
     steps:
       - uses: actions/checkout@v6
 
@@ -94,21 +93,14 @@ jobs:
         if: env.HAS_PLAN_ROLE == 'true'
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: ${{ secrets.AWS_PLAN_ROLE_ARN }}
+          role-to-assume: ${{ vars.AWS_PLAN_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-
-      - name: Configure AWS credentials with existing plan keys
-        if: env.HAS_PLAN_ROLE != 'true' && env.HAS_PLAN_KEYS == 'true'
-        uses: aws-actions/configure-aws-credentials@v6
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          allowed-account-ids: "831597648506"
 
       - name: Require plan credentials
-        if: env.HAS_PLAN_ROLE != 'true' && env.HAS_PLAN_KEYS != 'true'
+        if: env.HAS_PLAN_ROLE != 'true'
         run: |
-          echo "Configure AWS_PLAN_ROLE_ARN or the existing AWS plan credentials before running real plans." >&2
+          echo "Configure the read-only AWS_PLAN_ROLE_ARN repository variable before running real plans." >&2
           exit 1
 
       - name: Initialize OpenTofu
@@ -117,7 +109,7 @@ jobs:
       - name: Create global plan
         if: matrix.environment == 'global'
         run: |
-          tofu -chdir="terraform/env/global" plan -no-color -out="$GITHUB_WORKSPACE/global.tfplan"
+          tofu -chdir="terraform/env/global" plan -lock=false -no-color -out="$GITHUB_WORKSPACE/global.tfplan"
           tofu -chdir="terraform/env/global" show -no-color "$GITHUB_WORKSPACE/global.tfplan" > "$GITHUB_WORKSPACE/global.plan.txt"
 
       - name: Create production plans
@@ -126,13 +118,13 @@ jobs:
           current_live_path="$(tofu -chdir="terraform/env/prod" output -raw live_path)"
           case "$current_live_path" in blue|green) ;; *) echo "Invalid state live_path: $current_live_path" >&2; exit 1 ;; esac
 
-          tofu -chdir="terraform/env/prod" plan \
+          tofu -chdir="terraform/env/prod" plan -lock=false \
             -no-color \
             -var="live_path=$current_live_path" \
             -out="$GITHUB_WORKSPACE/prod-current.tfplan"
           tofu -chdir="terraform/env/prod" show -no-color "$GITHUB_WORKSPACE/prod-current.tfplan" > "$GITHUB_WORKSPACE/prod-current.plan.txt"
 
-          tofu -chdir="terraform/env/prod" plan \
+          tofu -chdir="terraform/env/prod" plan -lock=false \
             -no-color \
             -var="live_path=green" \
             -out="$GITHUB_WORKSPACE/prod-green.tfplan"
@@ -152,19 +144,17 @@ jobs:
   deploy:
     name: deploy (auto, non-destructive only)
     needs: static-checks
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     concurrency:
       group: deploy-prod
       cancel-in-progress: false
     env:
-      HAS_DEPLOY_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN != '' }}
-      HAS_DEPLOY_KEYS: ${{ secrets.AWS_ACCESS_KEY_ID != '' && secrets.AWS_SECRET_ACCESS_KEY != '' }}
+      HAS_DEPLOY_ROLE: ${{ vars.AWS_DEPLOY_ROLE_ARN != '' }}
     steps:
       - uses: actions/checkout@v6
         with:
           submodules: true
-          token: ${{ secrets.GH_TOKEN }}
           fetch-depth: 1
 
       - uses: opentofu/setup-opentofu@v2
@@ -190,21 +180,14 @@ jobs:
         if: env.HAS_DEPLOY_ROLE == 'true'
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-
-      - name: Configure AWS credentials with deploy keys
-        if: env.HAS_DEPLOY_ROLE != 'true' && env.HAS_DEPLOY_KEYS == 'true'
-        uses: aws-actions/configure-aws-credentials@v6
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          allowed-account-ids: "831597648506"
 
       - name: Require deploy credentials
-        if: env.HAS_DEPLOY_ROLE != 'true' && env.HAS_DEPLOY_KEYS != 'true'
+        if: env.HAS_DEPLOY_ROLE != 'true'
         run: |
-          echo "Configure AWS_DEPLOY_ROLE_ARN or the AWS deploy keys before auto-deploy." >&2
+          echo "Configure the main-only AWS_DEPLOY_ROLE_ARN repository variable before auto-deploy." >&2
           exit 1
 
       - name: Initialize OpenTofu
