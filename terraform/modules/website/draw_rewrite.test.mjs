@@ -28,6 +28,44 @@ function request(uri, rawQueryString) {
   };
 }
 
+test("retired English URLs redirect directly to current guides with alias fallbacks", () => {
+  for (const [oldSlug, newSlug] of [
+    ["2025-12-10-agent-factory-scaling-ai-employee-creation", "2026-08-01-build-a-governed-agent-platform-on-aws"],
+    ["2026-05-30-personal-aws-cost-guardrails", "2026-03-30-personal-aws-cost-guardrails"],
+    ["2026-08-10-deprecating-agent-pingpong", "2026-08-10-claude-code-cross-session-messaging"],
+    ["2026-08-10-claude-code-agent-teams", "2026-08-10-claude-code-cross-session-messaging"],
+    ["2026-09-21-should-your-service-render-inside-the-ai-host", "2026-09-26-should-your-service-render-inside-the-ai-host"],
+    ["2026-09-21-where-should-agent-refusals-live", "2026-09-26-where-should-agent-refusals-live"],
+    ["2026-09-23-ecs-deployment-observability", "2026-09-27-ecs-deployment-observability"],
+    ["2026-09-24-agent-observability-correctness-not-uptime", "2026-09-28-would-the-evaluator-catch-the-wrong-refund"],
+    ["2024-01-19-mastering-chatgpt-for-efficient-software-development", "2026-08-01-evidence-driven-ai-assisted-software-development"],
+  ]) {
+    const oldPath = `/blog/${oldSlug}.html`;
+    const targetPath = `/blog/${newSlug}.html`;
+    const content = readFileSync(path.join(repo, "content/blog", `${newSlug}.en.md`), "utf8");
+    assert.ok(content.includes(`  - ${oldPath}\n`), oldPath);
+    assert.ok(!content.includes("maintenance_status: archived"), targetPath);
+    for (const prefix of ["", "/ko"]) {
+      const response = handler({ request: request(`${prefix}${oldPath}`, "tag=a&tag=b&next=%2F") });
+      assert.equal(response.statusCode, 301, oldPath);
+      assert.equal(response.headers.location.value, `https://www.yopa.page${targetPath}?tag=a&tag=b&next=%2F`);
+      const target = request(targetPath, undefined);
+      assert.equal(handler({ request: target }), target, targetPath);
+    }
+  }
+});
+
+test("deleted URLs without successors and near matches stay available for origin 404s", () => {
+  for (const uri of [
+    "/blog/how-to-split-a-string-in-bash.html",
+    "/blog/2024-03-07-solving-dynamodb-conditional-update-challenges-with-aws-cdk.html",
+    "/blog/2026-08-10-claude-code-agent-teams.html-extra",
+  ]) {
+    const incoming = request(uri, undefined);
+    assert.equal(handler({ request: incoming }), incoming, uri);
+  }
+});
+
 test("every retired Korean article redirects to its existing English source", () => {
   assert.equal(redirects.length, 76);
   for (const { oldPath, englishPath } of redirects) {

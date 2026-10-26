@@ -5,9 +5,10 @@
 
   - robots front matter wins (for example "noindex, follow").
   - noindex: true keeps its original meaning, "noindex, nofollow".
-  - Tag, category, and section list pages with fewer than 2 visible posts
-    (archived posts are hidden) are thin pages that Google reports as
-    soft 404s, so they get "noindex, follow".
+  - Tag and category term pages with fewer than 2 visible posts get
+    "noindex, follow". This is a local publishing policy, not a Google
+    threshold or a verified mapping to Search Console's soft 404 examples.
+  - Other sections opt out explicitly in front matter, regardless of size.
   - The /blog/ section list duplicates /articles.html. CloudFront redirects
     it; this keeps it out of the index and the sitemap as well.
 */ -}}
@@ -17,9 +18,11 @@
 {{- else -}}
   {{- if .Params.noindex -}}
     {{- $robots = "noindex, nofollow" -}}
-  {{- else if in (slice "term" "section") .Kind -}}
+  {{- else if and (eq .Kind "section") (eq .Section "blog") -}}
+    {{- $robots = "noindex, follow" -}}
+  {{- else if eq .Kind "term" -}}
     {{- $visible := where .Pages "Params.maintenance_status" "ne" "archived" -}}
-    {{- if or (lt (len $visible) 2) (and (eq .Kind "section") (eq .Section "blog")) -}}
+    {{- if lt (len $visible) 2 -}}
       {{- $robots = "noindex, follow" -}}
     {{- end -}}
   {{- end -}}

@@ -1,14 +1,17 @@
 """Build-output checks for the Search Console indexing fixes.
 
-Google reported thin tag and category pages as soft 404s and saw copies of
-list pages at /page/N/. These tests keep those problems from coming back.
+Thin tag and category pages are candidates for the reported soft 404s;
+the exact Search Console URL mapping is unverified. These tests verify the
+publishing policy and the concrete list/canonical/redirect regressions.
 """
 import re
 import shutil
 import subprocess
 import tempfile
 import unittest
+from html.parser import HTMLParser
 from pathlib import Path
+from urllib.parse import urljoin
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,13 +20,38 @@ POST_LINK = re.compile(r"<div class=post><a href=([^ >]+)")
 COUNT = re.compile(r"class=count>(\d+)<")
 
 
+class HeadLinks(HTMLParser):
+    def __init__(self, html):
+        super().__init__()
+        self.canonicals = []
+        self.languages = []
+        self.feed(html)
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == "link" and attrs.get("rel") == "canonical":
+            self.canonicals.append(attrs.get("href"))
+        if tag == "link" and attrs.get("hreflang"):
+            self.languages.append(attrs)
+
+
 class SearchIndexingTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.out = Path(tempfile.mkdtemp(prefix="yopa-indexing-test-"))
+        # A useful section with one child must not inherit the term-count policy.
+        content = cls.out / "fixture-content"
+        shutil.copytree(ROOT / "content", content)
+        (content / "reference").mkdir()
+        (content / "reference/_index.en.md").write_text("---\ntitle: Reference\n---\n")
+        (content / "reference/_index.ko.md").write_text(
+            '---\ntitle: Reference\nrobots: "noindex, follow"\n---\n')
+        (content / "reference/guide.en.md").write_text("---\ntitle: Reference guide\n---\nA useful guide.\n")
+        # Explicitly excluded utility sections stay excluded as they grow.
+        (content / "dispatch/another.en.md").write_text("---\ntitle: Another utility page\n---\n")
         subprocess.run(
             ["hugo", "--gc", "--minify", "--cacheDir", str(cls.out / ".hugo-cache"),
-             "--destination", str(cls.out)],
+             "--contentDir", str(content), "--destination", str(cls.out)],
             cwd=ROOT, check=True, capture_output=True, text=True,
         )
         cls.sitemap = set()
@@ -88,6 +116,56 @@ class SearchIndexingTests(unittest.TestCase):
         self.assertFalse((self.out / "tags/page/2").exists())
         self.assertFalse((self.out / "categories/page/2").exists())
 
+    def test_retained_taxonomy_pagers_are_self_canonical(self):
+        checked = {"tags": 0, "categories": 0}
+        for kind in checked:
+            for page in (self.out / kind).glob("*/page/*.html"):
+                if int(page.stem) < 2:
+                    continue
+                rel = page.relative_to(self.out).as_posix()
+                with self.subTest(page=rel):
+                    self.assertEqual(HeadLinks(page.read_text()).canonicals,
+                                     [f"https://www.yopa.page/{rel}"])
+                    self.assertEqual(self.robots(rel), "")
+                    self.assertGreater(len(POST_LINK.findall(page.read_text())), 0)
+                checked[kind] += 1
+        self.assertTrue(all(checked.values()))
+
+    def test_later_home_pager_has_no_first_page_canonical_or_language_alternate(self):
+        links = HeadLinks(self.html("page/2/index.html"))
+        self.assertEqual(links.canonicals, ["https://www.yopa.page/page/2/index.html"])
+        self.assertEqual(links.languages, [])
+
+    def test_head_pagination_does_not_reintroduce_archived_posts(self):
+        archived = {
+            "https://www.yopa.page/blog/" + re.sub(r"(?:\.en)?\.md$", ".html", page.name)
+            for page in (ROOT / "content/blog").glob("*.md")
+            if re.search(r"^maintenance_status: archived$", page.read_text(), re.M)
+        }
+        self.assertTrue(archived)
+        pages = [self.out / "index.html", self.out / "page/2/index.html"]
+        for kind in ("tags", "categories"):
+            pages.extend((self.out / kind).rglob("*.html"))
+        for page in pages:
+            rel = page.relative_to(self.out).as_posix()
+            links = {urljoin(f"https://www.yopa.page/{rel}", link)
+                     for link in POST_LINK.findall(page.read_text())}
+            with self.subTest(page=rel):
+                self.assertFalse(links & archived)
+                self.assertLessEqual(len(links), 8)
+
+    def test_single_child_sections_are_indexable_unless_explicitly_excluded(self):
+        self.assertEqual(self.robots("reference/index.html"), "")
+        self.assertIn("reference/index.html", self.sitemap)
+        self.assertEqual(self.robots("dispatch/index.html"), "noindex, follow")
+        self.assertNotIn("dispatch/index.html", self.sitemap)
+
+    def test_language_alternates_do_not_advertise_excluded_pages(self):
+        self.assertEqual(HeadLinks(self.html("dispatch/index.html")).languages, [])
+        self.assertEqual(HeadLinks(self.html("reference/index.html")).languages, [])
+        self.assertNotIn("https://www.yopa.page/ko/reference/index.html",
+                         (self.out / "en/sitemap.xml").read_text())
+
     def test_home_pages_use_directory_urls(self):
         for rel, url in (("index.html", "https://www.yopa.page/"),
                          ("ko/index.html", "https://www.yopa.page/ko/")):
@@ -112,7 +190,7 @@ class SearchIndexingTests(unittest.TestCase):
 
     def test_old_article_urls_forward_to_their_successors(self):
         for old, new in (
-            ("2025-12-10-agent-factory-scaling-ai-employee-creation", "2025-12-20-building-agent-factory-with-agentcore"),
+            ("2025-12-10-agent-factory-scaling-ai-employee-creation", "2026-08-01-build-a-governed-agent-platform-on-aws"),
             ("2026-05-30-personal-aws-cost-guardrails", "2026-03-30-personal-aws-cost-guardrails"),
             ("2026-08-10-claude-code-agent-teams", "2026-08-10-claude-code-cross-session-messaging"),
             ("2026-08-10-deprecating-agent-pingpong", "2026-08-10-claude-code-cross-session-messaging"),
@@ -120,7 +198,7 @@ class SearchIndexingTests(unittest.TestCase):
             ("2026-09-21-where-should-agent-refusals-live", "2026-09-26-where-should-agent-refusals-live"),
             ("2026-09-23-ecs-deployment-observability", "2026-09-27-ecs-deployment-observability"),
             ("2026-09-24-agent-observability-correctness-not-uptime", "2026-09-28-would-the-evaluator-catch-the-wrong-refund"),
-            ("2024-01-19-mastering-chatgpt-for-efficient-software-development", "2024-08-12-mastering-generative-ai-for-efficient-software-development"),
+            ("2024-01-19-mastering-chatgpt-for-efficient-software-development", "2026-08-01-evidence-driven-ai-assisted-software-development"),
         ):
             with self.subTest(old=old):
                 text = self.html(f"blog/{old}.html")

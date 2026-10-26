@@ -16,6 +16,20 @@ var RETIRED_KOREAN_PAGES = {
   '/ko/explore/': '/explore/'
 };
 
+// Exact retired article URLs with an established current successor. Matching
+// Hugo aliases remain an origin fallback; unrelated deleted URLs stay 404.
+var RETIRED_ARTICLES = {
+  '/blog/2025-12-10-agent-factory-scaling-ai-employee-creation.html': '/blog/2026-08-01-build-a-governed-agent-platform-on-aws.html',
+  '/blog/2026-05-30-personal-aws-cost-guardrails.html': '/blog/2026-03-30-personal-aws-cost-guardrails.html',
+  '/blog/2026-08-10-deprecating-agent-pingpong.html': '/blog/2026-08-10-claude-code-cross-session-messaging.html',
+  '/blog/2026-08-10-claude-code-agent-teams.html': '/blog/2026-08-10-claude-code-cross-session-messaging.html',
+  '/blog/2026-09-21-should-your-service-render-inside-the-ai-host.html': '/blog/2026-09-26-should-your-service-render-inside-the-ai-host.html',
+  '/blog/2026-09-21-where-should-agent-refusals-live.html': '/blog/2026-09-26-where-should-agent-refusals-live.html',
+  '/blog/2026-09-23-ecs-deployment-observability.html': '/blog/2026-09-27-ecs-deployment-observability.html',
+  '/blog/2026-09-24-agent-observability-correctness-not-uptime.html': '/blog/2026-09-28-would-the-evaluator-catch-the-wrong-refund.html',
+  '/blog/2024-01-19-mastering-chatgpt-for-efficient-software-development.html': '/blog/2026-08-01-evidence-driven-ai-assisted-software-development.html'
+};
+
 function englishTarget(uri) {
   if (RETIRED_KOREAN_PAGES[uri]) {
     return RETIRED_KOREAN_PAGES[uri];
@@ -76,6 +90,11 @@ function handler(event) {
   var listTarget = duplicateListTarget(target === undefined ? uri : target);
   if (listTarget !== undefined) {
     target = listTarget;
+  }
+  // Resolve Korean retirement and article renames in the same response.
+  var articlePath = target === undefined ? uri : target;
+  if (RETIRED_ARTICLES.hasOwnProperty(articlePath)) {
+    target = RETIRED_ARTICLES[articlePath];
   }
   if (target !== undefined) {
     var rawQueryString = request.rawQueryString();

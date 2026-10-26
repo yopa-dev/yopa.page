@@ -14,7 +14,7 @@
 {{/* Build the paginator from the visible (non-archived) posts and render
      only this page's slice, so /page/2/ shows the next posts instead of a
      copy of page 1. */}}
-{{ $paginator := .Paginate $pages }}
+{{ $paginator := partial "list-paginator.html" . }}
 <section>
   <div class="container">
     <section>

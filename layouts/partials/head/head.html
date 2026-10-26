@@ -9,16 +9,19 @@
   <title>{{with.Title}}{{.}} | {{end}}{{.Site.Title}}</title>
   {{ end }}
 
-  <link rel="canonical" href="{{ partial "seo/canonical.html" . }}" />
+  {{ $pager := partial "list-paginator.html" . }}
+  <link rel="canonical" href="{{ partial "seo/canonical.html" (dict "page" . "pager" $pager) }}" />
 
   {{ partial "post-meta.html" . }}
 
   {{/* hreflang alternates for translated pages (multilingual SEO) */}}
-  {{ if .IsTranslated }}
-    {{ range .AllTranslations }}
-    <link rel="alternate" hreflang="{{ .Language.Lang }}" href="{{ partial "seo/canonical.html" . }}" />
+  {{/* Later English home pagers have no Korean pager translation. */}}
+  {{ $translations := partial "seo/translations.html" . }}
+  {{ if and (gt (len $translations) 1) (not (strings.Contains (partial "seo/robots.html" .) "noindex")) (not .Sitemap.Disable) (not (and $pager $pager.HasPrev)) }}
+    {{ range $translations }}
+    <link rel="alternate" hreflang="{{ .Language.Lang }}" href="{{ partial "seo/canonical.html" (dict "page" .) }}" />
     {{ end }}
-    <link rel="alternate" hreflang="x-default" href="{{ partial "seo/canonical.html" (index .AllTranslations 0) }}" />
+    <link rel="alternate" hreflang="x-default" href="{{ partial "seo/canonical.html" (dict "page" (index $translations 0)) }}" />
   {{ end }}
 
   {{ if hugo.IsProduction }}

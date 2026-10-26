@@ -34,7 +34,7 @@
 {{ if eq .Language.Lang "ko" }}
     {{ $latestPages = first 8 $pages }}
 {{ else }}
-    {{ $paginator := .Paginate $pages }}
+    {{ $paginator := partial "list-paginator.html" . }}
     {{ $latestPages = $paginator.Pages }}
 {{ end }}
 {{ $archivesPage := first 1 (where $articleSite.RegularPages "Layout" "eq" "archives") }}

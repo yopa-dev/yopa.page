@@ -1,10 +1,12 @@
 {{- /*
-  Returns the canonical URL for a page. Home pages are served at their
-  directory URL (https://www.yopa.page/ and https://www.yopa.page/ko/), so the
-  trailing index.html is dropped. Every other page keeps its permalink.
+  Accepts a dict with page and an optional pager. Only the HTML head supplies
+  the current pager; sitemap entries and language alternates use base page
+  URLs without initializing pagination as a side effect.
 */ -}}
-{{- $url := .Permalink -}}
-{{- if .IsHome -}}
+{{- $url := .page.Permalink -}}
+{{- if and .pager (gt .pager.PageNumber 1) -}}
+  {{- $url = .pager.URL | absURL -}}
+{{- else if .page.IsHome -}}
   {{- $url = strings.TrimSuffix "index.html" $url -}}
 {{- end -}}
 {{- return $url -}}

@@ -1,0 +1,18 @@
+{{- /* The head and body must initialize pagination with the same collection.
+  Hugo caches the first invocation. Do not paginate taxonomy clouds or the
+  Korean home, which deliberately shows only the latest English articles. */ -}}
+{{- $pager := false -}}
+{{- if in (slice "term" "section") .Kind -}}
+  {{- $pages := where .Pages "Params.maintenance_status" "ne" "archived" -}}
+  {{- if $pages -}}
+    {{- $pager = .Paginate $pages -}}
+  {{- end -}}
+{{- else if and .IsHome (eq .Language.Lang "en") -}}
+  {{- $articleSite := partial "article-site.html" . -}}
+  {{- $pages := where $articleSite.RegularPages "Type" "in" $articleSite.Params.mainSections -}}
+  {{- $pages = where $pages "Params.maintenance_status" "ne" "archived" -}}
+  {{- if $pages -}}
+    {{- $pager = .Paginate $pages -}}
+  {{- end -}}
+{{- end -}}
+{{- return $pager -}}
