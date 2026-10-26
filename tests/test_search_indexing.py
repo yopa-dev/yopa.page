@@ -1,8 +1,8 @@
 """Build-output checks for the Search Console indexing fixes.
 
-Thin tag and category pages are candidates for the reported soft 404s;
-the exact Search Console URL mapping is unverified. These tests verify the
-publishing policy and the concrete list/canonical/redirect regressions.
+Google live tests still classified a two-post term and a two-post last pager
+as soft 404s after the first fixes. These tests verify deliberate exclusion of
+automatic term lists while preserving article indexing and reader navigation.
 """
 import re
 import shutil
@@ -55,7 +55,7 @@ class SearchIndexingTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.out = Path(tempfile.mkdtemp(prefix="yopa-indexing-test-"))
-        # A useful section with one child must not inherit the term-count policy.
+        # A useful section must not inherit the automatic taxonomy policy.
         content = cls.out / "fixture-content"
         shutil.copytree(ROOT / "content", content)
         (content / "reference").mkdir()
@@ -94,19 +94,18 @@ class SearchIndexingTests(unittest.TestCase):
                     continue
                 yield f"{kind}/{page.name}", text
 
-    def test_thin_term_pages_are_noindex_and_left_out_of_the_sitemap(self):
-        thin = 0
+    def test_automatic_term_pages_are_noindex_regardless_of_post_count(self):
+        counts = set()
         for rel, text in self.term_pages():
             count = int(COUNT.search(text).group(1))
+            counts.add(count)
             with self.subTest(page=rel, posts=count):
-                if count < 2:
-                    thin += 1
-                    self.assertEqual(self.robots(rel), "noindex, follow")
-                    self.assertNotIn(rel, self.sitemap)
-                else:
-                    self.assertEqual(self.robots(rel), "")
-                    self.assertIn(rel, self.sitemap)
-        self.assertGreater(thin, 0)
+                self.assertEqual(self.robots(rel), "noindex, follow")
+                self.assertNotIn(rel, self.sitemap)
+        self.assertIn(0, counts)
+        self.assertIn(1, counts)
+        self.assertIn(2, counts)
+        self.assertTrue(any(count > 8 for count in counts))
 
     def test_header_count_matches_the_posts_listed(self):
         for rel, text in self.term_pages():
@@ -142,10 +141,38 @@ class SearchIndexingTests(unittest.TestCase):
                 with self.subTest(page=rel):
                     self.assertEqual(HeadLinks(page.read_text()).canonicals,
                                      [f"https://www.yopa.page/{rel}"])
-                    self.assertEqual(self.robots(rel), "")
+                    self.assertEqual(self.robots(rel), "noindex, follow")
+                    self.assertNotIn(rel, self.sitemap)
                     self.assertGreater(len(POST_LINK.findall(page.read_text())), 0)
                 checked[kind] += 1
         self.assertTrue(all(checked.values()))
+
+    def test_live_soft404_examples_keep_navigation_to_indexable_articles(self):
+        for rel in ("tags/coding-agents.html", "tags/python/page/2.html",
+                    "tags/bulk-api-2.0.html", "tags/authorization.html"):
+            with self.subTest(page=rel):
+                self.assertEqual(self.robots(rel), "noindex, follow")
+                self.assertNotIn(rel, self.sitemap)
+                links = POST_LINK.findall(self.html(rel))
+                self.assertTrue(links)
+                for link in links:
+                    url = urljoin(f"https://www.yopa.page/{rel}", link)
+                    article = url.removeprefix("https://www.yopa.page/")
+                    self.assertIn(article, self.sitemap)
+                    self.assertNotIn("noindex", self.robots(article))
+        # Taxonomy directories remain useful entry points for human browsing.
+        for rel in ("tags/index.html", "categories/index.html", "articles.html"):
+            self.assertEqual(self.robots(rel), "")
+            self.assertIn(rel, self.sitemap)
+
+    def test_article_indexing_is_not_changed_by_term_exclusions(self):
+        articles = [rel for rel in self.sitemap if rel.startswith("blog/")]
+        self.assertTrue(articles)
+        for rel in articles:
+            with self.subTest(article=rel):
+                self.assertNotIn("noindex", self.robots(rel))
+                self.assertEqual(HeadLinks(self.html(rel)).canonicals,
+                                 [f"https://www.yopa.page/{rel}"])
 
     def test_home_pager_origin_html_has_no_first_page_canonical_or_language_alternate(self):
         # CloudFront redirects these legacy URLs; do not reintroduce invalid
