@@ -17,6 +17,9 @@
   not add a matching robots.txt disallow as a second indexing control.
 - Every retained pager uses its own canonical URL. The home page itself uses
   `/` or `/ko/`; later English home pagers have no Korean pager alternate.
+  Unused later home URLs (`/page/2/`, `/page/2/index.html` and later numbers)
+  permanently redirect to `/articles.html` at CloudFront. Their generated
+  origin HTML is not an independently served search landing page.
   Head and body call the same paginator partial because Hugo caches the first
   pagination invocation. Sitemap and translation URLs do not initialize it.
   HTML and sitemap hreflang clusters omit noindex or sitemap-disabled locales.
@@ -55,10 +58,11 @@ after recrawl; do not promise that the warning will disappear immediately.
    | URL | Expected result |
    | --- | --- |
    | `/`, `/ko/` | 200, self-canonical directory URL, indexable |
-   | `/dimly/` | 200, canonical `/dimly/` |
+   | `/dimly/` | 200, standalone page; its custom head currently has no canonical tag |
    | `/tags/python/page/2.html` | 200, self-canonical, next set of visible posts |
    | `/categories/python/page/2.html` | 200, self-canonical |
    | `/blog/`, `/blog/page/2/index.html` | 301 directly to `/articles.html` |
+   | `/page/2/`, `/page/28/index.html` | 301 directly to `/articles.html` |
    | `/tags/page/2/index.html` | 301 to `/tags/index.html` |
    | `/ko/tags/agentcore.html` | 301 to `/tags/agentcore.html`, then 200 |
    | `/blog/2025-12-10-agent-factory-scaling-ai-employee-creation.html` | 301 to `/blog/2026-08-01-build-a-governed-agent-platform-on-aws.html` |

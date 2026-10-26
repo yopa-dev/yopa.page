@@ -188,6 +188,24 @@ test("the blog section list and its pages redirect to the article index", () => 
   }
 });
 
+test("unused later home pagers redirect directly to the article index", () => {
+  for (const page of [2, 3, 28, 29, 100]) {
+    for (const suffix of ["", "/", "/index.html"]) {
+      const uri = `/page/${page}${suffix}`;
+      const response = handler({ request: request(uri, "tag=a&tag=b&next=%2F") });
+      assert.equal(response.statusCode, 301, uri);
+      assert.equal(response.headers.location.value,
+        "https://www.yopa.page/articles.html?tag=a&tag=b&next=%2F", uri);
+    }
+  }
+  for (const uri of ["/page", "/page/1/", "/page/1/index.html", "/page/0/",
+    "/page/02/", "/page/two/", "/page/2/feed.xml", "/page/2.html",
+    "/page/2/index.html-extra", "/pages/2/", "/tags/python/page/2.html"]) {
+    const incoming = request(uri, undefined);
+    assert.equal(handler({ request: incoming }), incoming, uri);
+  }
+});
+
 test("old tag and category index page URLs redirect to the first page", () => {
   for (const [uri, expected] of [
     ["/tags/page", "/tags/index.html"],

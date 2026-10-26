@@ -1,4 +1,4 @@
 ---
-title: Dispatch
+title: Dispatches
 robots: "noindex, follow"
 ---

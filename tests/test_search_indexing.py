@@ -12,6 +12,7 @@ import unittest
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import urljoin
+from xml.etree import ElementTree
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,6 +26,9 @@ class HeadLinks(HTMLParser):
         super().__init__()
         self.canonicals = []
         self.languages = []
+        self.metadata = []
+        self.title = ""
+        self._in_title = False
         self.feed(html)
 
     def handle_starttag(self, tag, attrs):
@@ -33,6 +37,18 @@ class HeadLinks(HTMLParser):
             self.canonicals.append(attrs.get("href"))
         if tag == "link" and attrs.get("hreflang"):
             self.languages.append(attrs)
+        if tag == "meta":
+            self.metadata.append(attrs)
+        if tag == "title":
+            self._in_title = True
+
+    def handle_endtag(self, tag):
+        if tag == "title":
+            self._in_title = False
+
+    def handle_data(self, data):
+        if self._in_title:
+            self.title += data
 
 
 class SearchIndexingTests(unittest.TestCase):
@@ -131,7 +147,9 @@ class SearchIndexingTests(unittest.TestCase):
                 checked[kind] += 1
         self.assertTrue(all(checked.values()))
 
-    def test_later_home_pager_has_no_first_page_canonical_or_language_alternate(self):
+    def test_home_pager_origin_html_has_no_first_page_canonical_or_language_alternate(self):
+        # CloudFront redirects these legacy URLs; do not reintroduce invalid
+        # language alternates in the generated origin fallback either.
         links = HeadLinks(self.html("page/2/index.html"))
         self.assertEqual(links.canonicals, ["https://www.yopa.page/page/2/index.html"])
         self.assertEqual(links.languages, [])
@@ -165,6 +183,20 @@ class SearchIndexingTests(unittest.TestCase):
         self.assertEqual(HeadLinks(self.html("reference/index.html")).languages, [])
         self.assertNotIn("https://www.yopa.page/ko/reference/index.html",
                          (self.out / "en/sitemap.xml").read_text())
+
+    def test_dispatch_section_keeps_its_original_plural_title(self):
+        for prefix in ("", "ko/"):
+            rel = f"{prefix}dispatch/index.html"
+            html = self.html(rel)
+            head = HeadLinks(html)
+            with self.subTest(page=rel):
+                self.assertIn("<h1>Dispatches</h1>", html)
+                self.assertEqual(head.title, "Dispatches | thats.nono")
+                self.assertEqual(next(meta["content"] for meta in head.metadata
+                                      if meta.get("property") == "og:title"),
+                                 "Dispatches | thats.nono")
+                feed = ElementTree.parse(self.out / f"{prefix}dispatch/index.xml")
+                self.assertEqual(feed.findtext("channel/title"), "Dispatches on thats.nono")
 
     def test_home_pages_use_directory_urls(self):
         for rel, url in (("index.html", "https://www.yopa.page/"),

@@ -51,9 +51,14 @@ function englishTarget(uri) {
 // instead of competing with it in search results:
 // - the /blog/ section list and its pages copy /articles.html, the full
 //   article index (article URLs and the /blog/index.xml feed are untouched);
+// - later home pagers are unused article lists with no navigation to them;
 // - /tags/page/N/ and /categories/page/N/ were copies of the first page of
 //   the tag and category indexes and are no longer built.
 function duplicateListTarget(uri) {
+  var homePager = /^\/page\/([1-9][0-9]*)(?:\/(?:index\.html)?)?$/.exec(uri);
+  if (homePager && Number(homePager[1]) > 1) {
+    return '/articles.html';
+  }
   if (uri === '/blog' || uri === '/blog/' || uri === '/blog/index.html' ||
       uri === '/blog/page' || uri.indexOf('/blog/page/') === 0) {
     return '/articles.html';
