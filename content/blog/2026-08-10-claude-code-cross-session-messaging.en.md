@@ -12,6 +12,9 @@ tags:
   - coding-agents
   - claude-code
   - cross-session-messaging
+aliases:
+  - /blog/2026-08-10-claude-code-agent-teams.html
+  - /blog/2026-08-10-deprecating-agent-pingpong.html
 ---
 
 > **Review note (2026-10-21):** Provider availability changed after publication. Messaging between sessions on the same machine now works on every provider, including Amazon Bedrock, Claude Platform on AWS, Google Cloud's Agent Platform, and Microsoft Foundry, from v2.1.248. Only sessions on other machines or in the cloud still need a claude.ai sign-in through Remote Control. The article also covers the idle notice added in v2.1.236. Source: [cross-session messaging documentation](https://code.claude.com/docs/en/cross-session-messaging#availability).

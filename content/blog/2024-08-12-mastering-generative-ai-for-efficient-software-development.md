@@ -14,6 +14,8 @@ tags:
   - AI Evaluation
   - Security
   - Software Engineering
+aliases:
+  - /blog/2024-01-19-mastering-chatgpt-for-efficient-software-development.html
 ---
 
 ![oni-tiny-robot](images/oni-tiny-robot.webp)

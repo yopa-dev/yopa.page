@@ -1,0 +1,24 @@
+{{ define "main" }}
+{{/* Overrides the theme's terms.html. The theme called .Paginate here but
+     always rendered the full tag cloud, so Hugo built /tags/page/2/ through
+     /tags/page/N/ (and the same for categories) as exact copies of the first
+     page. Without .Paginate those copies are no longer built; CloudFront
+     redirects their old URLs to the first page. */}}
+
+<header>
+    <div class="container">
+        <h1>{{ .Title }}</h1>
+    </div>
+</header>
+
+<section>
+    <div class="container">
+        <div class="terms">
+            {{ range (index .Site.Taxonomies (.Title | lower)) }}
+            <a href="{{ .Page.RelPermalink }}">{{ .Page.Title }} <span class="bg-number">{{ .Count }}</span></a>
+            {{ end }}
+        </div>
+    </div>
+</section>
+
+{{ end }}

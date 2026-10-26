@@ -1,5 +1,5 @@
-{{ if .Params.noindex }}
-<meta name="robots" content="noindex, nofollow">
+{{ with partial "seo/robots.html" . }}
+<meta name="robots" content="{{ . }}">
 {{ end }}
 
 {{ if and .IsPage (eq .Section "blog") }}

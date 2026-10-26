@@ -1,24 +1,26 @@
 {{ define "main" }} {{ $pages := where .Pages "Params.maintenance_status" "ne" "archived" }}
+{{ $count := len $pages }}
 
 <header>
   <div class="container">
     <h1>{{ .Title }}</h1>
     <p class="subtitle">
-      {{ if eq .Kind "taxonomy" }}
-      <span class="count">{{ len .Pages }}</span> posts tagged with "{{ .Title
-      }}" {{ else }} <span class="count">{{ len .Pages }}</span> posts found. {{
-      end }}
+      <span class="count">{{ $count }}</span> {{ cond (eq $count 1) "post" "posts" }} found.
     </p>
   </div>
 </header>
 
-{{ if gt (len $pages) 0 }}
+{{ if gt $count 0 }}
+{{/* Build the paginator from the visible (non-archived) posts and render
+     only this page's slice, so /page/2/ shows the next posts instead of a
+     copy of page 1. */}}
+{{ $paginator := .Paginate $pages }}
 <section>
   <div class="container">
     <section>
       <section>
         <div class="posts">
-          {{ range $pages }}
+          {{ range $paginator.Pages }}
           <div class="post">
             <a href="{{ .RelPermalink }}">
               <div class="post-row">
@@ -35,7 +37,7 @@
   </div>
 </section>
 
-{{ $paginator := .Paginate $pages }} {{ if gt $paginator.TotalPages 1}}
+{{ if gt $paginator.TotalPages 1}}
 <section>
   <div class="container">
     <nav class="pagination">
@@ -56,7 +58,7 @@
   <div class="container">
     <div class="no-posts">
       <p>
-        No posts found for this tag. This may be due to a typo in the tag name.
+        There are no current posts here. Older posts on this topic were archived.
       </p>
       <p><a href="/articles.html">Browse all articles</a></p>
     </div>

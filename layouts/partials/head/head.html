@@ -9,16 +9,16 @@
   <title>{{with.Title}}{{.}} | {{end}}{{.Site.Title}}</title>
   {{ end }}
 
-  <link rel="canonical" href="{{ .Permalink }}" />
+  <link rel="canonical" href="{{ partial "seo/canonical.html" . }}" />
 
   {{ partial "post-meta.html" . }}
 
   {{/* hreflang alternates for translated pages (multilingual SEO) */}}
   {{ if .IsTranslated }}
     {{ range .AllTranslations }}
-    <link rel="alternate" hreflang="{{ .Language.Lang }}" href="{{ .Permalink }}" />
+    <link rel="alternate" hreflang="{{ .Language.Lang }}" href="{{ partial "seo/canonical.html" . }}" />
     {{ end }}
-    <link rel="alternate" hreflang="x-default" href="{{ (index .AllTranslations 0).Permalink }}" />
+    <link rel="alternate" hreflang="x-default" href="{{ partial "seo/canonical.html" (index .AllTranslations 0) }}" />
   {{ end }}
 
   {{ if hugo.IsProduction }}

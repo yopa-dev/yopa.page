@@ -83,4 +83,4 @@ I would calculate these four items before writing the deployment plan:
 
 Current rates are available from [AWS VPC pricing](https://aws.amazon.com/vpc/pricing/), [AWS Fargate pricing](https://aws.amazon.com/fargate/pricing/), [Amazon EFS pricing](https://aws.amazon.com/efs/pricing/), and [AWS Secrets Manager pricing](https://aws.amazon.com/secrets-manager/pricing/). These numbers are one deployment's measured usage in one region, not a fixed price for every Hermes installation.
 
-After measuring this cost, I moved Hermes to Synology and documented the lossless process separately: [Migrating Hermes from AWS ECS to Synology Without Losing Its Memory](/blog/migrate-hermes-from-aws-to-synology/).
+After measuring this cost, I moved Hermes to Synology and documented the lossless process separately: [Migrating Hermes from AWS ECS to Synology Without Losing Its Memory](/blog/2026-08-08-migrate-hermes-from-aws-to-synology.html).

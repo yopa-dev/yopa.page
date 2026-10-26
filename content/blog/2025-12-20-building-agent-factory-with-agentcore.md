@@ -19,6 +19,8 @@ tags:
   - Security
   - Observability
   - AWS IAM
+aliases:
+  - /blog/2025-12-10-agent-factory-scaling-ai-employee-creation.html
 ---
 
 In the rapidly evolving world of Generative AI, deploying agents one by one quickly becomes a bottleneck. We need systems that can build systems—an **Agent Factory**.

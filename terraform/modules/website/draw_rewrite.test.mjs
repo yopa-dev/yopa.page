@@ -78,7 +78,9 @@ test("retired Korean taxonomy, pagination, and archive routes redirect to Englis
     ["/ko/tags/index.html", "/tags/index.html"],
     ["/ko/tags/aws.html", "/tags/aws.html"],
     ["/ko/tags/security/page/2/", "/tags/security/page/2/"],
-    ["/ko/tags/page/3/index.html", "/tags/page/3/index.html"],
+    // The English tag index has a single page, so its old page URLs
+    // redirect to the first page in one hop.
+    ["/ko/tags/page/3/index.html", "/tags/index.html"],
     ["/ko/categories", "/categories/index.html"],
     ["/ko/categories/", "/categories/index.html"],
     ["/ko/categories/aws.html", "/categories/aws.html"],
@@ -99,7 +101,6 @@ test("retired Korean taxonomy, pagination, and archive routes redirect to Englis
 
 test("unrelated Korean routes pass through unchanged", () => {
   for (const uri of [
-    "/ko/",
     "/ko/index.html",
     "/ko/index.xml",
     "/ko/about.html",
@@ -115,15 +116,72 @@ test("unrelated Korean routes pass through unchanged", () => {
   }
 });
 
-test("draw and explore still rewrite to their app indexes", () => {
+test("directory URLs rewrite to their index pages", () => {
   for (const [uri, expected] of [
     ["/draw", "/draw/index.html"],
     ["/draw/", "/draw/index.html"],
     ["/explore", "/explore/index.html"],
     ["/explore/", "/explore/index.html"],
+    // The Korean logo link and the Korean home canonical URL point here.
+    ["/ko", "/ko/index.html"],
+    ["/ko/", "/ko/index.html"],
+    // The sitemap lists Dimly at its url front matter value, /dimly/.
+    ["/dimly", "/dimly/index.html"],
+    ["/dimly/", "/dimly/index.html"],
   ]) {
     const incoming = request(uri, undefined);
     assert.equal(handler({ request: incoming }), incoming);
     assert.equal(incoming.uri, expected);
+  }
+});
+
+test("the blog section list and its pages redirect to the article index", () => {
+  for (const [uri, query, expected] of [
+    ["/blog", undefined, "/articles.html"],
+    ["/blog/", undefined, "/articles.html"],
+    ["/blog/index.html", undefined, "/articles.html"],
+    ["/blog/page", undefined, "/articles.html"],
+    ["/blog/page/2/", undefined, "/articles.html"],
+    ["/blog/page/27/index.html", "utm_source=x", "/articles.html?utm_source=x"],
+  ]) {
+    const response = handler({ request: request(uri, query) });
+    assert.equal(response.statusCode, 301, uri);
+    assert.equal(response.headers.location.value, `https://www.yopa.page${expected}`, uri);
+  }
+});
+
+test("old tag and category index page URLs redirect to the first page", () => {
+  for (const [uri, expected] of [
+    ["/tags/page", "/tags/index.html"],
+    ["/tags/page/2/", "/tags/index.html"],
+    ["/tags/page/35/index.html", "/tags/index.html"],
+    ["/categories/page/2/index.html", "/categories/index.html"],
+    ["/categories/page/14/", "/categories/index.html"],
+  ]) {
+    const response = handler({ request: request(uri, undefined) });
+    assert.equal(response.statusCode, 301, uri);
+    assert.equal(response.headers.location.value, `https://www.yopa.page${expected}`, uri);
+  }
+});
+
+test("articles, the blog feed, and look-alike paths are not redirected", () => {
+  for (const uri of [
+    "/blog/2026-09-27-ecs-deployment-observability.html",
+    "/blog/index.xml",
+    "/blog/pages.html",
+    "/blog/page-two.html",
+    "/blogroll.html",
+    "/index.html",
+    "/",
+    "/kofi.html",
+    "/dimlylit.html",
+    "/tags/page.html",
+    "/tags/aws.html",
+    "/tags/github/page/2.html",
+    "/categories/aws/page/2.html",
+  ]) {
+    const incoming = request(uri, undefined);
+    assert.equal(handler({ request: incoming }), incoming, uri);
+    assert.equal(incoming.uri, uri, uri);
   }
 });

@@ -1,0 +1,10 @@
+{{- /*
+  Returns the canonical URL for a page. Home pages are served at their
+  directory URL (https://www.yopa.page/ and https://www.yopa.page/ko/), so the
+  trailing index.html is dropped. Every other page keeps its permalink.
+*/ -}}
+{{- $url := .Permalink -}}
+{{- if .IsHome -}}
+  {{- $url = strings.TrimSuffix "index.html" $url -}}
+{{- end -}}
+{{- return $url -}}
