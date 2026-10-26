@@ -14,6 +14,8 @@ tags:
   - lambda
   - cloudformation
   - personal
+aliases:
+  - /blog/2026-05-30-personal-aws-cost-guardrails.html
 ---
 
 There's a recurring genre of AWS war story — "I left a script running, woke up to a $4,000 bill, AWS support waived it." It's a real risk on a hobby account: you don't have an org-level SCP, you don't have a FinOps team, and one misconfigured loop on Bedrock or a forgotten EC2 instance can quietly run for a week.

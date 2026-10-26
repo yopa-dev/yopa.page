@@ -1,0 +1,30 @@
+{{- /*
+  Returns the robots meta value for a page, or "" when search engines may
+  index it. The head partial and the sitemap both use this, so a page that
+  asks search engines to skip it is never listed in the sitemap.
+
+  - robots front matter wins (for example "noindex, follow").
+  - noindex: true keeps its original meaning, "noindex, nofollow".
+  - Tag and category term pages with fewer than 2 visible posts get
+    "noindex, follow". This is a local publishing policy, not a Google
+    threshold or a verified mapping to Search Console's soft 404 examples.
+  - Other sections opt out explicitly in front matter, regardless of size.
+  - The /blog/ section list duplicates /articles.html. CloudFront redirects
+    it; this keeps it out of the index and the sitemap as well.
+*/ -}}
+{{- $robots := "" -}}
+{{- with .Params.robots -}}
+  {{- $robots = . -}}
+{{- else -}}
+  {{- if .Params.noindex -}}
+    {{- $robots = "noindex, nofollow" -}}
+  {{- else if and (eq .Kind "section") (eq .Section "blog") -}}
+    {{- $robots = "noindex, follow" -}}
+  {{- else if eq .Kind "term" -}}
+    {{- $visible := where .Pages "Params.maintenance_status" "ne" "archived" -}}
+    {{- if lt (len $visible) 2 -}}
+      {{- $robots = "noindex, follow" -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- return $robots -}}

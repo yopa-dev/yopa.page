@@ -3,6 +3,11 @@ title: 구독 확인이 완료됐습니다
 type: dispatch
 url: /ko/dispatch/confirmed.html
 translationKey: field-dispatch-confirmed
+# Subscription thank-you page: useful only after signing up, so keep it
+# out of search results and the sitemap.
+robots: "noindex, follow"
+sitemap:
+  disable: true
 ---
 
 이제 **yopa.page 소식**을 받아보실 수 있습니다.

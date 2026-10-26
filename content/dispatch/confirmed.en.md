@@ -3,6 +3,11 @@ title: You're subscribed
 type: dispatch
 url: /dispatch/confirmed.html
 translationKey: field-dispatch-confirmed
+# Subscription thank-you page: useful only after signing up, so keep it
+# out of search results and the sitemap.
+robots: "noindex, follow"
+sitemap:
+  disable: true
 ---
 
 You're all set for **yopa.page**.

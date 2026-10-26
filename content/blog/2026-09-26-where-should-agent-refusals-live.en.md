@@ -13,6 +13,8 @@ tags:
   - Amazon Bedrock AgentCore
   - tool-calling
   - authorization
+aliases:
+  - /blog/2026-09-21-where-should-agent-refusals-live.html
 ---
 
 A month ago I wrote that [irreversible actions cannot be gated by a prompt](/blog/2026-08-24-gate-irreversible-actions-in-code.html). That post was an argument, built on a gym booking incident and on the day I deleted a shared custom domain for eighteen teams. This post is the measurement I owed it.
