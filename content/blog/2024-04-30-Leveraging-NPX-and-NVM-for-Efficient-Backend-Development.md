@@ -1,8 +1,8 @@
 ---
 title: Leveraging NPX and NVM for Efficient Backend Development
 date: 2024-04-30
-lastmod: 2026-08-01
-reviewed_at: 2026-08-01
+lastmod: 2026-10-21
+reviewed_at: 2026-10-21
 author: Yoonsoo Park
 description: "Explore how combining NPX and NVM can streamline backend development processes, featuring real-life scenarios and examples."
 categories:
@@ -13,6 +13,8 @@ tags:
   - JavaScript
   - Package Management
 ---
+
+> **Review note (2026-10-21):** The example versions were Node.js 12 and 14, both end-of-life since 2022 and 2023. They are now 22 and 24, the two LTS lines supported today. The workflow is unchanged. Check the [Node.js release status](https://nodejs.org/en/about/previous-releases) before you copy version numbers, because the LTS lines move every year.
 
 NVM selects a Node.js runtime, while NPX or `npm exec` runs a package command. They solve separate concerns and should be pinned according to the project policy.
 
@@ -30,11 +32,14 @@ Imagine a backend dev juggling legacy Node.js versions and modern standards for 
 
 1. **Setting Up the Development Environment**:
 
-   - The developer can use `nvm` to switch between Node versions as needed. For instance, starting with Node 12 for compatibility testing:
+   - The developer can use `nvm` to switch between Node versions as needed. For instance, starting with Node 22, the older of the two supported LTS lines, for compatibility testing:
      ```bash
-     nvm install 12
-     nvm use 12
+     nvm ls-remote --lts | tail -n 5
+     nvm install 22
+     nvm use 22
+     node --version
      ```
+     `nvm ls-remote --lts` is read-only and shows which LTS releases exist before you install one. `node --version` confirms the switch took effect.
    - They then use `npx` to run a scaffolding tool like `express-generator` without installing it globally:
      ```bash
      npx express-generator my-new-service
@@ -44,7 +49,8 @@ Imagine a backend dev juggling legacy Node.js versions and modern standards for 
 
    - As development progresses, testing on newer Node versions is necessary. Here, `nvm` allows easy switching:
      ```bash
-     nvm use 14
+     nvm install 24
+     nvm use 24
      ```
    - Using `npx`, the developer can run local tests with tools like `mocha` without permanent installations:
      ```bash
@@ -52,10 +58,10 @@ Imagine a backend dev juggling legacy Node.js versions and modern standards for 
      ```
 
 3. **CI/CD Integration**:
-   - In a continuous integration setup, ensuring that the microservice builds and runs tests across all supported Node versions can be scripted using both `nvm` and `npx`:
+   - In a continuous integration setup, ensuring that the microservice builds and runs tests across all supported Node versions can be scripted with `nvm exec`, which runs one command under a given Node version. The project's own `npm test` script runs the locally installed test tools, so no `npx` download is needed:
      ```bash
-     nvm exec 12 npx npm test
-     nvm exec 14 npx npm test
+     nvm exec 22 npm test
+     nvm exec 24 npm test
      ```
 
 This isolates microservices from version conflicts and global deps, ensuring each is tested and deployed with the right Node env.
