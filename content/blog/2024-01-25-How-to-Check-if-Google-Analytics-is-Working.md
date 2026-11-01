@@ -51,6 +51,6 @@ By following these steps, you're not just checking if Google Analytics is workin
 
 ## Wrapping it up 👏
 
-Accurate data is the cornerstone of effective web analytics. By utilizing the Google Tag Assistant, you're taking a crucial step towards ensuring the integrity of your data. Remember, in the world of analytics, precision matters. Don't just track; track correctly. Cheers to data-driven success!
+Accurate data is the cornerstone of effective web analytics. By utilizing the Google Tag Assistant, you're taking a crucial step toward ensuring the integrity of your data. Remember, in the world of analytics, precision matters. Don't just track; track correctly. Cheers to data-driven success!
 
 Cheers! 🍺
