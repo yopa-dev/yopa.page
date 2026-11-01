@@ -12,6 +12,8 @@ tags:
   - observability
   - ai-agents
   - measured
+aliases:
+  - /blog/2026-09-24-agent-observability-correctness-not-uptime.html
 ---
 
 AWS launched [Amazon CloudWatch Omni](https://aws.amazon.com/cloudwatch/omni/) last week, and the essay that came with it, [Wrong, not broken](https://aws.amazon.com/blogs/aws-insights/wrong-not-broken/) by Matt Wood, opens with a good example. A refund agent answers in 600 ms with zero errors and tells a customer they are owed $40. The policy says $140. The agent pulled last quarter's version of the document. Every dashboard is green, and the answer is wrong.

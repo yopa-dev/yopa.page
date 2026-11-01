@@ -1,0 +1,8 @@
+{{- /* Only indexable, published locales belong in the hreflang cluster. */ -}}
+{{- $translations := slice -}}
+{{- range .AllTranslations -}}
+  {{- if and (not .Sitemap.Disable) (not (strings.Contains (partial "seo/robots.html" .) "noindex")) -}}
+    {{- $translations = $translations | append . -}}
+  {{- end -}}
+{{- end -}}
+{{- return $translations -}}
