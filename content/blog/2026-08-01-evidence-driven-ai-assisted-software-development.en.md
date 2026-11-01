@@ -5,6 +5,8 @@ lastmod: 2026-08-01
 reviewed_at: 2026-08-01
 maintenance_status: replacement
 replaces_url: "/blog/2024-08-12-mastering-generative-ai-for-efficient-software-development.html"
+aliases:
+  - /blog/2024-01-19-mastering-chatgpt-for-efficient-software-development.html
 author: Yoonsoo Park
 description: "A bounded engineering workflow for using coding agents with explicit context, small changes, deterministic validation, security review, and rollback."
 categories:

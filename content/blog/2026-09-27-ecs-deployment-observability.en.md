@@ -12,6 +12,8 @@ tags:
   - deployment
   - observability
   - circuit-breaker
+aliases:
+  - /blog/2026-09-23-ecs-deployment-observability.html
 ---
 
 Deploying a service on ECS (Amazon Elastic Container Service) has always been a two-tool job. You start the rollout with `aws ecs update-service`, then you go somewhere else to find out if it worked: `describe-services` for the deployment state, the service event log, CloudWatch Logs for the task, and CloudTrail if none of those explain it. You keep the state machine in your head and poll it.
