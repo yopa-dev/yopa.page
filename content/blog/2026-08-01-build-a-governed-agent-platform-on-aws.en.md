@@ -5,6 +5,8 @@ lastmod: 2026-08-01
 reviewed_at: 2026-08-01
 maintenance_status: replacement
 replaces_url: "/blog/2025-12-20-building-agent-factory-with-agentcore.html"
+aliases:
+  - /blog/2025-12-10-agent-factory-scaling-ai-employee-creation.html
 author: Yoonsoo Park
 description: "Turn agent creation into a reviewed platform workflow with declarative templates, least privilege, signed artifacts, evaluations, approval, observability, and rollback."
 categories:

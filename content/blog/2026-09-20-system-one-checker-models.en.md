@@ -25,7 +25,7 @@ The reason it matters took me a second read to see, and once I saw it I could no
 Three primitives.
 
 - **Noul**: a yes/no question answered as a single probability between 0 and 1. Not "yes" plus a separate confidence field. The number itself is the belief.
-- **Choice**: pick one of N labelled options, with a confidence.
+- **Choice**: pick one of N labeled options, with a confidence.
 - **Score**: a number in a range, with a confidence.
 
 One important constraint: the questions cannot see each other's answers. If a decision depends on three factors, you ask about each factor separately and you combine them in your own code. That sounds like a limitation. It is actually the whole design philosophy, and I will come back to it.
