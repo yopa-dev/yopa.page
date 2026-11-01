@@ -13,6 +13,8 @@ tags:
   - Amazon Bedrock AgentCore
   - Security
   - ui-extension
+aliases:
+  - /blog/2026-09-21-should-your-service-render-inside-the-ai-host.html
 ---
 
 For two years the way I thought about MCP (Model Context Protocol) was "here are my functions, model, pick one". The MCP Apps extension adds something new. Your server can now hand the AI host a small HTML page, a **widget**, and the host shows it inside the conversation. The user sees a card or a table instead of a paragraph.

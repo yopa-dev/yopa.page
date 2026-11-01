@@ -1,0 +1,28 @@
+{{- /*
+  Based on Hugo's built-in sitemap template. Differences:
+  - pages that ask search engines not to index them (see seo/robots.html)
+    are left out, so the sitemap never lists a page Google is told to skip;
+  - URLs come from seo/canonical.html, so the home pages are listed as
+    https://www.yopa.page/ and https://www.yopa.page/ko/.
+*/ -}}
+{{ printf "<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>" | safeHTML }}
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+  xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  {{ range where .Pages "Sitemap.Disable" "ne" true }}
+    {{- if and .Permalink (not (strings.Contains (partial "seo/robots.html" .) "noindex")) -}}
+  <url>
+    <loc>{{ partial "seo/canonical.html" (dict "page" .) }}</loc>{{ if not .Lastmod.IsZero }}
+    <lastmod>{{ safeHTML ( .Lastmod.Format "2006-01-02T15:04:05-07:00" ) }}</lastmod>{{ end }}{{ with .Sitemap.ChangeFreq }}
+    <changefreq>{{ . }}</changefreq>{{ end }}{{ if ge .Sitemap.Priority 0.0 }}
+    <priority>{{ .Sitemap.Priority }}</priority>{{ end }}
+    {{- $translations := partial "seo/translations.html" . -}}
+    {{- if gt (len $translations) 1 }}{{ range $translations }}
+    <xhtml:link
+                rel="alternate"
+                hreflang="{{ .Language.LanguageCode }}"
+                href="{{ partial "seo/canonical.html" (dict "page" .) }}"
+                />{{ end }}{{ end }}
+  </url>
+    {{- end -}}
+  {{ end }}
+</urlset>
