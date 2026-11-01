@@ -1,8 +1,8 @@
 ---
 title: "AWS Vector Databases for RAG — A 2026 Architectural Decision Guide"
 date: 2025-05-25T02:30:00-04:00
-lastmod: 2026-08-01
-reviewed_at: 2026-08-01
+lastmod: 2026-10-21
+reviewed_at: 2026-10-21
 author: Yoonsoo Park
 description: "Choosing a vector store on AWS is no longer a five-way decision. With S3 Vectors added to OpenSearch, pgvector, Neptune Analytics, Bedrock Knowledge Bases, and Kendra, the real question is which tier of the cost/latency curve your workload lives on. Here's an updated decision framework."
 categories:
@@ -22,6 +22,8 @@ tags:
 
 > **Update note (2026):** This post was first written in May 2025. I've since reworked it to add S3 Vectors, mark the services that have graduated from preview to general availability, and cut the date-stamped claims that aged badly. If you read the original five-service version, the biggest change is that "pick one database" is now mostly the wrong question.
 
+> **Review note (2026-10-21):** On August 5, 2026, AWS announced [general availability of native vector search in Amazon DynamoDB](https://aws.amazon.com/about-aws/whats-new/2026/08/amazon-dynamodb-vector-search/), shortly after this guide's August review. It now appears as its own row and section below: vectors stored on the operational table. The other options are unchanged.
+
 ## The mental model: a cost/latency tier, not a beauty contest
 
 Most "which vector DB should I use" guides line up services side by side as if you pick one and commit. In practice the AWS-native options now sort cleanly onto a **cost vs. latency curve**:
@@ -30,6 +32,7 @@ Most "which vector DB should I use" guides line up services side by side as if y
 |------|-------------|------------|
 | **Hot / real-time** | High QPS, sub-50ms p99, always-on | OpenSearch Service |
 | **Warm / transactional** | Vectors next to relational data, ACID | Aurora / RDS PostgreSQL + pgvector |
+| **Operational table** | Vectors next to key-value items you already keep in DynamoDB | DynamoDB vector search |
 | **Cold / cost-first** | Billions of vectors, infrequent or batch queries | **S3 Vectors** |
 | **Managed / fastest-to-ship** | You want RAG, not a database | Bedrock Knowledge Bases |
 | **Graph-aware** | Relationships matter as much as similarity | Neptune Analytics (GraphRAG) |
@@ -79,6 +82,14 @@ If your vectors live next to relational data, `pgvector` is the path of least re
 
 **Tradeoff:** HNSW indexes want to live in memory, so instance sizing gets critical past a few million vectors. Best when relational + vector in one transactional store is worth more than peak vector throughput.
 
+## Amazon DynamoDB vector search — vectors on the operational table
+
+DynamoDB now stores embeddings as attributes on the items they describe. You create a vector index, run approximate nearest neighbor queries, choose the index partition key to scale, and filter on attributes to scope results. You generate the embeddings yourself, for example with a Bedrock model. It is serverless and pay-per-use like the rest of DynamoDB, and it is available in all commercial AWS Regions and AWS GovCloud (US) ([announcement](https://aws.amazon.com/about-aws/whats-new/2026/08/amazon-dynamodb-vector-search/)).
+
+**When it wins:** the source of truth already lives in DynamoDB, so the vector index does not need a sync pipeline to a second store.
+
+**Tradeoff:** it is vector *search*, not a RAG pipeline. Chunking, ingestion, and retrieve-and-generate are still yours to build. And if your data lives somewhere else, adding DynamoDB just to hold vectors brings the sync problem back. For a worked example and a longer when-it-replaces-a-vector-DB discussion, see [DynamoDB Now Does Vector Search](/blog/2026-08-06-dynamodb-native-vector-search.html). Measure recall on your own evaluation set before you move a workload.
+
 ## Amazon Bedrock Knowledge Bases — fastest path to RAG
 
 If what you actually want is *retrieval-augmented generation* and not a vector database to operate, Bedrock Knowledge Bases is the managed front door: ingest → chunk → embed → retrieve → (optionally) generate, with the vector store abstracted away.
@@ -108,6 +119,7 @@ Kendra delivers semantic enterprise search with **no vector expertise required**
 - **High QPS, real-time, large scale** → OpenSearch (spill cold vectors to S3 Vectors).
 - **Billions of vectors, infrequent/batch queries, cost is the constraint** → S3 Vectors.
 - **Vectors alongside relational data, need ACID** → Aurora/RDS pgvector.
+- **Source of truth already in DynamoDB, want similar items plus their data in one query** → DynamoDB vector search.
 - **You want RAG shipped this week, not a database to run** → Bedrock Knowledge Bases.
 - **Answers depend on relationships, not just similarity** → Neptune Analytics (GraphRAG).
 - **Enterprise document search with access control, no ML team** → Kendra GenAI Index.

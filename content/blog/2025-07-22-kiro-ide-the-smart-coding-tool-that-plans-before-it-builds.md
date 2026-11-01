@@ -1,8 +1,8 @@
 ---
 title: "Kiro After General Availability: Specs, Agents, CLI, and Web"
 date: 2025-07-22
-lastmod: 2026-08-01
-reviewed_at: 2026-08-01
+lastmod: 2026-10-21
+reviewed_at: 2026-10-21
 author: Yoonsoo Park
 description: "A current guide to choosing Kiro specs, agentic chat, CLI, Web, steering, hooks, MCP, checkpoints, and evaluation without relying on stale preview limits."
 categories:
@@ -16,7 +16,9 @@ tags:
   - Security
 ---
 
-Kiro launched in preview in July 2025 and reached general availability in November 2025. It is no longer just a preview IDE with “vibe” and “spec” modes. The product now spans IDE and CLI workflows, team features, property-based testing, checkpoints, remote MCP, global steering, custom and parallel agents, and Kiro Web preview. Availability, models, credit accounting, and prices change, so use the live product and pricing pages for purchasing decisions.
+> **Review note (2026-10-21):** Kiro Web is no longer a preview. It became [generally available on September 1, 2026](https://kiro.dev/changelog/web/kiro-web-is-now-generally-available/). The preview wording is removed and the verification date updated. The rest of the guidance is unchanged.
+
+Kiro launched in preview in July 2025 and reached general availability in November 2025. It is no longer just a preview IDE with “vibe” and “spec” modes. The product now spans IDE and CLI workflows, team features, property-based testing, checkpoints, remote MCP, global steering, custom and parallel agents, and Kiro Web, which became generally available on September 1, 2026. Availability, models, credit accounting, and prices change, so use the live product and pricing pages for purchasing decisions.
 
 ## Choose the interaction by task
 
@@ -24,7 +26,7 @@ Use **specs** when the work needs explicit requirements, design, tasks, and trac
 
 Use **agentic chat** for bounded exploration, diagnosis, and small edits where a full spec would add ceremony. Ask it to inspect current repository facts first and require changed-file and validation evidence.
 
-Use **Kiro CLI** when terminal context, scripts, or remote environments matter. Use **Kiro Web** for asynchronous repository work and pull-request creation when its preview status and connected-repository permissions fit the task. Keep branch protection and human review; a generated PR is not an approval.
+Use **Kiro CLI** when terminal context, scripts, or remote environments matter. Use **Kiro Web** for asynchronous repository work and pull-request creation when its connected-repository permissions fit the task. GA changes the support status, not the review requirement. Keep branch protection and human review; a generated PR is not an approval.
 
 ## Persistent project context
 
@@ -62,11 +64,11 @@ Evaluate Kiro on representative repository tasks: success rate, escaped defects,
 - Re-evaluate IDE, CLI, and Web separately for data and repository access.
 - Re-run a small benchmark when models or credit policies change.
 
-Verified on **2026-08-01**.
+Verified on **2026-10-21**.
 
 ## Primary sources
 
 - [Kiro general availability](https://kiro.dev/blog/general-availability/)
 - [Kiro documentation](https://kiro.dev/docs/)
-- [Kiro Web](https://kiro.dev/blog/introducing-kiro-web/)
+- [Kiro Web](https://kiro.dev/blog/introducing-kiro-web/) and [Kiro Web general availability](https://kiro.dev/changelog/web/kiro-web-is-now-generally-available/)
 - [Kiro pricing](https://kiro.dev/pricing/)

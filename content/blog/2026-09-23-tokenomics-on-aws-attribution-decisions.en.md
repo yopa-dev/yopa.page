@@ -76,7 +76,7 @@ The traditional FinOps levers do not transfer. Commitments do not work on a serv
 
 ### The reporting trap in caching
 
-A 90% cost reduction is a demand signal to your finance partner, and it is not one. Cached input tokens are cheaper because work was reused, not because usage fell. If your dashboard only plots dollars, a caching win looks identical to a product that lost traffic. Keep the token counts and the cache behaviour next to the cost line so the two stories do not merge.
+A 90% cost reduction is a demand signal to your finance partner, and it is not one. Cached input tokens are cheaper because work was reused, not because usage fell. If your dashboard only plots dollars, a caching win looks identical to a product that lost traffic. Keep the token counts and the cache behavior next to the cost line so the two stories do not merge.
 
 ## Pillar 3: governance is a placement decision
 
