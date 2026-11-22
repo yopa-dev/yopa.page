@@ -2,7 +2,7 @@
 title: "A Team of Bots on AgentCore: Start With 20 Resources, Budget for Tokens"
 date: 2026-11-22T09:00:00-05:00
 author: Yoonsoo Park
-description: "How to build a Grok Bot-style team of bots on Amazon Bedrock AgentCore, where a boss bot hands tasks to specialist bots. The starter stack is 20 AWS resources. Six days of my prototype cost about $2.60 to $2.98, and 98.6% of that was model tokens. Also: four defaults to fix on day one, and what to add before production."
+description: "How to build a Grok Bot-style team of bots on Amazon Bedrock AgentCore, where a lead bot hands tasks to specialist bots. The starter stack is 20 AWS resources. Six days of my prototype cost about $2.60 to $2.98, and 98.6% of that was model tokens. Also: four defaults to fix on day one, and what to add before production."
 categories:
   - AI Agents
   - AWS
@@ -16,7 +16,7 @@ tags:
   - measured
 ---
 
-Grok Bot, xAI's teammate-style assistant, shows your bots as a roster, and the bots work together as a team. I wanted the same thing on AWS, so I built a prototype on Amazon Bedrock AgentCore, AWS's service for running AI agents. It has a **boss bot** that can create other bots, hand them tasks, collect their reports, and ask me when it needs a decision.
+Grok Bot, xAI's teammate-style assistant, shows your bots as a roster, and the bots work together as a team. I wanted the same thing on AWS, so I built a prototype on Amazon Bedrock AgentCore, AWS's service for running AI agents. It has a **lead bot** that can create other bots, hand them tasks, collect their reports, and ask me when it needs a decision.
 
 This is the guide I wanted before I started. It answers three questions:
 
@@ -28,12 +28,12 @@ This is the guide I wanted before I started. It answers three questions:
 
 - **A bot is a row in a table, not a deployment.** One AgentCore Runtime runs every bot. Adding a bot is one DynamoDB write.
 - **Start with 20 resources:** one table, one AgentCore Memory, one runtime with its role, one Lambda, and one REST API with a Cognito sign-in. I synthesized this stack (built the CloudFormation template on my machine). I did not deploy it.
-- **The boss runs specialists inside its own process.** Asking another bot is a function call that builds a second agent in memory, not a network call between services.
-- **Budget for tokens, not infrastructure.** Six days of my prototype, 32 agent runs and about 395,000 tokens, cost **$2.60 to $2.98**, and **98.6%** of it was model tokens. The runtime and memory together were about **4 cents**. One request that went boss → 3 specialists took 121 seconds and cost **$0.62 to $0.68**.
+- **The lead runs specialists inside its own process.** Asking another bot is a function call that builds a second agent in memory, not a network call between services.
+- **Budget for tokens, not infrastructure.** Six days of my prototype, 32 agent runs and about 395,000 tokens, cost **$2.60 to $2.98**, and **98.6%** of it was model tokens. The runtime and memory together were about **4 cents**. One request that went lead → 3 specialists took 121 seconds and cost **$0.62 to $0.68**.
 - **Fix four defaults on day one:** a 60-second Lambda timeout, a 4,096-token output cap, one shared session per specialist, and failed runs that leave no record.
 - **Production is a list of additions, not a rewrite:** real sign-in, approvals, trusted run records, cost limits, logs and traces, customer isolation, private networking, data retention, safe deploys. The checklist at the end says when each one starts to matter.
 
-Code and output: [yopa-experiments `experiment/agentcore-bot-team-start-to-production-20261122`](https://github.com/ypark9/yopa-experiments/tree/experiment/agentcore-bot-team-start-to-production-20261122/2026-11-22-agentcore-bot-team-start-to-production) (commit [`d8aafb4`](https://github.com/ypark9/yopa-experiments/commit/d8aafb42de556e99b12c33113be13dc70152d903)).
+Code and output: [yopa-experiments `experiment/agentcore-bot-team-start-to-production-20261122`](https://github.com/ypark9/yopa-experiments/tree/experiment/agentcore-bot-team-start-to-production-20261122/2026-11-22-agentcore-bot-team-start-to-production) (commit [`8a2f96b`](https://github.com/ypark9/yopa-experiments/commit/8a2f96be85077f3ffc83d89e776c4b147eb9d152)).
 
 ## Terms
 
@@ -43,13 +43,13 @@ Code and output: [yopa-experiments `experiment/agentcore-bot-team-start-to-produ
 | AgentCore Memory | AWS's store for conversation events. "Short-term" memory is the raw turns the model reads back on the next turn. |
 | Session | One conversation. The runtime keeps one microVM per session ID. |
 | SSE | Server-sent events: a response that arrives as many small `data:` lines instead of one body, so the answer shows up while it is being written. |
-| Boss bot, specialist | The bot you talk to, and the bots it hands work to. All of them are the same kind of agent with a different prompt and different tools. |
+| Lead bot, specialist | The bot you talk to, and the bots it hands work to. All of them are the same kind of agent with a different prompt and different tools. |
 | Inference profile | A Bedrock model ID that also picks where calls run. `us.anthropic.claude-opus-5-5` routes within US regions. |
 | CDK synth | Turning CDK code into a CloudFormation template on your machine. It creates nothing in AWS. |
 
 ## 1. How one question travels
 
-Say you ask the boss bot "find yesterday's failed runs." Here is every step, the resource it needs, and what breaks without it.
+Say you ask the lead bot "find yesterday's failed runs." Here is every step, the resource it needs, and what breaks without it.
 
 | Step | What happens | Resource | Without it |
 |---|---|---|---|
@@ -57,17 +57,17 @@ Say you ask the boss bot "find yesterday's failed runs." Here is every step, the
 | 2 | API Gateway passes it to a Lambda | Lambda | Nothing calls the runtime |
 | 3 | The Lambda calls `InvokeAgentRuntime` with a session ID, the prompt, the bot ID, and a header with the user | `bedrock-agentcore:InvokeAgentRuntime` on the Lambda's role | Access denied |
 | 4 | AgentCore starts (or reuses) the session's microVM and sends `POST /invocations` to port 8080 | AgentCore Runtime | No place to run. Without the header allowlist, your code never sees the user |
-| 5 | The code reads the boss's row and its tools' rows | DynamoDB table | The boss has no prompt and no tools |
+| 5 | The code reads the lead's row and its tools' rows | DynamoDB table | The lead has no prompt and no tools |
 | 6 | It reads the conversation so far | AgentCore Memory | The bot forgets the last turn |
-| 7 | The boss calls the model | Bedrock permissions on the runtime's role | No answer |
-| 8 | The boss calls `ask_bot`. A second agent is built **in the same process** with the specialist's prompt and tools | none | — |
+| 7 | The lead calls the model | Bedrock permissions on the runtime's role | No answer |
+| 8 | The lead calls `delegate_task`. A second agent is built **in the same process** with the specialist's prompt and tools | none | — |
 | 9 | The answer streams back as SSE through the Lambda and API Gateway | 15-minute timeouts on both | Anything longer than a minute stops on screen with no error (this happened to me) |
 
 **Takeaway:** step 8 is why the resource count stays flat. Ten bots or a hundred, the AWS side does not change.
 
 ## 2. The starter stack: 20 resources
 
-The whole stack is [`cdk/app.mjs`](https://github.com/ypark9/yopa-experiments/blob/d8aafb42de556e99b12c33113be13dc70152d903/2026-11-22-agentcore-bot-team-start-to-production/cdk/app.mjs), about 100 lines. The part that matters most is the runtime:
+The whole stack is [`cdk/app.mjs`](https://github.com/ypark9/yopa-experiments/blob/8a2f96be85077f3ffc83d89e776c4b147eb9d152/2026-11-22-agentcore-bot-team-start-to-production/cdk/app.mjs), about 100 lines. The part that matters most is the runtime:
 
 ```js
 const runtime = new Runtime(stack, 'BotRuntime', {
@@ -117,7 +117,7 @@ Two CDK defaults would have added resources that are not about bots. `TableV2` s
 
 ## 3. The runtime server in 50 lines
 
-AgentCore Runtime calls one HTTP server inside the microVM. [`runtime/index.js`](https://github.com/ypark9/yopa-experiments/blob/d8aafb42de556e99b12c33113be13dc70152d903/2026-11-22-agentcore-bot-team-start-to-production/runtime/index.js) is the smallest server I could write that follows the contract, with Node's built-in `http` module only. A real one calls a model where this one echoes the prompt:
+AgentCore Runtime calls one HTTP server inside the microVM. [`runtime/index.js`](https://github.com/ypark9/yopa-experiments/blob/8a2f96be85077f3ffc83d89e776c4b147eb9d152/2026-11-22-agentcore-bot-team-start-to-production/runtime/index.js) is the smallest server I could write that follows the contract, with Node's built-in `http` module only. A real one calls a model where this one echoes the prompt:
 
 ```js
 const SESSION_HEADER = 'x-amzn-bedrock-agentcore-runtime-session-id';
@@ -149,11 +149,11 @@ One thing the local check cannot show, which I learned on the prototype: **one s
 
 ## 4. The team is code, not infrastructure
 
-The boss gets three tools, and each is a few lines over the table and the model:
+The lead gets three tools, and each is a few lines over the table and the model:
 
-- **`list_bots`**: a query on the table's index for every bot.
-- **`create_bots`**: one conditional write per bot (`attribute_not_exists(PK)`, so an existing bot is never overwritten). The tool needs approval, and I approve the whole proposed team once.
-- **`ask_bot`**: loads the specialist's row and tools, builds a second agent in the same process with the specialist's prompt, gives it its own Memory session, runs the task, and returns the reply with a status line: `done`, `blocked` or `needs_user`.
+- **`find_bots`**: a query on the table's index for every bot.
+- **`add_bots`**: one conditional write per bot (`attribute_not_exists(PK)`, so an existing bot is never overwritten). The tool needs approval, and I approve the whole proposed team once.
+- **`delegate_task`**: loads the specialist's row and tools, builds a second agent in the same process with the specialist's prompt, gives it its own Memory session, runs the task, and returns the reply with a status line: `finished`, `stuck` or `need_input`.
 
 The rows look like this:
 
@@ -161,7 +161,7 @@ The rows look like this:
 bot   PK = BOT#<botId>    SK = META   GSI1PK = BOTS    GSI1SK = <botId>
       name, prompt, modelId (an inference profile ID), toolIds, status
 tool  PK = TOOL#<toolId>  SK = META   GSI1PK = TOOLS   GSI1SK = <toolId>
-      type, reference (list_bots, ask_bot, ...), description, needsApproval
+      type, reference (find_bots, delegate_task, ...), description, needsApproval
 ```
 
 Two rules keep the team from going wrong. Specialists do not get tools that need approval, because nobody is there to approve inside a task. And specialists do not get the team tools, so a specialist cannot start its own chain of bots.
@@ -174,7 +174,7 @@ My prototype hit all four. The bots found the last two themselves, by reading th
 |---|---|---|
 | Any answer longer than a minute stopped on screen, with no error | API Gateway waited 15 minutes, but the Lambda kept the 60-second default | 15 minutes on both, plus an idle check in the UI |
 | Specialists failed with "Model reached maximum token limit" | No one set `maxTokens`, so Bedrock's default of 4,096 output tokens applied | Set it yourself (I used 16,000 for specialists) |
-| When the boss gave one specialist two tasks at once, the second disappeared from history | The specialist's session ID came from (boss session, bot ID), so both tasks shared one session | Add the tool call's ID to the session ID, or give a bot one task at a time |
+| When the lead gave one specialist two tasks at once, the second disappeared from history | The specialist's session ID came from (lead session, bot ID), so both tasks shared one session | Add the tool call's ID to the session ID, or give a bot one task at a time |
 | Run history said 0 failures while two runs had failed | Runs were recorded only on success; a run that failed and was retried left nothing | Write the run record in a `finally` block, with the status and the error |
 
 ## 6. What it costs
@@ -200,11 +200,11 @@ Prices on 2026-11-22: Claude Opus 5.5 is $4 per million input tokens and $20 per
 
 The range has two causes. The low end is list price on the 57 model calls. The high end adds the 10% regional premium and 4,440 input and 4,427 output tokens that the agent-run records counted but the model-call records did not, priced as Opus.
 
-One request, boss → 3 specialists, all on Opus 5.5:
+One request, lead → 3 specialists, all on Opus 5.5:
 
 | Bot | Tokens in / out | Cost |
 |---|---|---|
-| Boss | 21,194 / 2,945 | $0.14 to $0.16 |
+| Lead | 21,194 / 2,945 | $0.14 to $0.16 |
 | Monitor (finds suspicious runs) | 9,267 / 4,185 | $0.12 to $0.13 |
 | Root cause 1 (reads one session) | 22,976 / 4,363 | $0.18 to $0.20 |
 | Root cause 2 (reads another session) | 21,245 / 4,556 | $0.18 to $0.19 |
@@ -216,7 +216,7 @@ The runtime's share of that request is about $0.002: the six days' runtime cost 
 
 - **Cost follows questions, not bots.** A bot nobody talks to has no session, so it costs nothing to run, and the table is on-demand.
 - **The bots that read are the expensive ones.** Each root-cause bot read a session's history, and that made 21,000 to 23,000 input tokens.
-- **The boss's context grows with every report.** Short reports are the cheapest optimization.
+- **The lead's context grows with every report.** Short reports are the cheapest optimization.
 - **For scale (arithmetic, not measured):** 20 of those requests a day is about $12.40 to $13.60 a day.
 
 To measure your own, all read-only:
@@ -234,7 +234,7 @@ The starter stack is enough for a demo with you as the only user. Before other p
 | Add | Why | On AWS | When |
 |---|---|---|---|
 | Real sign-in and rate limits | Other people will hit your API, on purpose or not | Your identity provider behind Cognito (OIDC or SAML); API Gateway usage plans or AWS WAF rate rules | Before the first outside user |
-| Approvals and an audit trail | A bot that changes data should not act on a guess | Tools that pause for approval (`create_bots` already does); store who approved what, and when | Before any bot gets a tool that writes |
+| Approvals and an audit trail | A bot that changes data should not act on a guess | Tools that pause for approval (`add_bots` already does); store who approved what, and when | Before any bot gets a tool that writes |
 | Run records you can trust | Without them you cannot answer "what happened?" | One record per run, written in `finally`: bot, user, status, error, tokens, time; an alarm on failures | Before the bots do real work |
 | Cost limits | Tokens are the bill | `maxTokens` per bot, short reports, token totals per bot and per user, AWS Budgets alerts, prompt caching for long shared prompts | As soon as a second person uses it |
 | Logs and traces | A chain of four agents is slow to debug from text alone | AgentCore observability: logs to CloudWatch Logs and traces to X-Ray for the runtime and memory | When a chain fails and you cannot tell which bot failed |
