@@ -2,7 +2,7 @@
 
 Last updated: 2026-08-09
 Repository: yopa.page repository root
-Status: release candidate; beehiiv acceptance passed, manual device and analytics checks remain
+Status: deployed on 2026-08-09; four-week measurement window active
 
 ## Start here
 
@@ -16,7 +16,8 @@ order:
 
 Run `cxdoc current . --json` and search yopa.page knowledge before relying on
 older session memory. Do not discard or overwrite the current working tree.
-Nothing in this MVP has been committed, pushed, or deployed.
+The MVP was merged through PRs #69–#71 and deployed on 2026-08-09. The release
+merge is `28bfd4d`.
 
 ## Product decision
 
@@ -186,6 +187,12 @@ reads; browser state is the current evidence.
 - English and Korean confirmation pages rendered without ads or browser errors.
 - JavaScript-off output retains every Expedition stop link.
 - `git diff --check`: passed.
+- PR #71 merge commit `28bfd4d`: Secret scan and yopa.page CI passed.
+- Production smoke on 2026-08-09: header/footer present; 320px navigation has
+  no horizontal overflow; About has no Copy for AI button; EN/KO Expedition
+  CTAs target the matching beehiiv publications; 5/5 completion focuses the
+  result; EN/KO confirmation pages render without ads; Expedition contains no
+  AdSense or Ko-fi surface.
 
 Remaining acceptance priorities:
 
@@ -196,11 +203,11 @@ Remaining acceptance priorities:
 - Screen-reader and physical-mobile checks are non-blocking follow-up work for
   this MVP; responsive browser and keyboard-focus evidence already passed.
 
-## Working tree and release boundary
+## Release and measurement boundary
 
-All Article Atlas Growth MVP changes are uncommitted. Preserve the full current
-scope, including untracked files. Do not stage, commit, push, open a PR, or
-deploy until the owner explicitly approves that action.
+The MVP was released on 2026-08-09. Keep the visitor loop stable through the
+first evaluation on 2026-09-06 except for production defects. Do not begin
+Maker's Road, Workshop, App Garden, or Presence during this window.
 
 The existing personal world plan remains at
 `agent-plans/personal/PLAN-article-atlas-world.md`. The actionable MVP source of
@@ -216,8 +223,7 @@ checkboxes and evidence in the same change that completes an item.
    subscriber identity data.
 4. Generate the host-filtered API totals and compare them with the same GA UI
    date range when convenient.
-5. Run the complete validation suite and production CTA smoke.
-6. Deploy after owner approval and record the actual release date.
+5. Repeat the aggregate baseline on 2026-09-06 and evaluate the MVP gates.
 
 ## Validation commands
 
